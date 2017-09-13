@@ -45,7 +45,7 @@ def save_file_pickle(file_path, data, overwrite=False):
     with open(file_path, "wb") as f:
         logger.info("Pickling and writing to disk...")
         try:
-            pickle.dump(data, f)
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as e:
             logger.exception("Failed with Error {0}".format(e))
             raise exceptions.FileSaveError
