@@ -33,8 +33,8 @@ def save_file_pickle(file_path, data, overwrite=False):
     try:
         dir_name, file_name = os.path.split(file_path)
     except Exception as e:
-        logger.exception("Error with file path {}: {0}".format(file_path, e))
-        raise exception.FileSaveError("Invalid file path")
+        logger.exception("Error with file path {}: {}".format(file_path, e))
+        raise exceptions.FileSaveError("Invalid file path")
     if os.path.isdir(dir_name):
         logger.info("Directory {} does not exist. Creating...".format(dir_name))
         os.makedirs(dir_name)

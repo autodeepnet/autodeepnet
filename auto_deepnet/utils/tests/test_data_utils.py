@@ -43,17 +43,28 @@ class TestPickle(unittest.TestCase):
 class TestHDF5(unittest.TestCase):
 
     def setUp(self):
-        self.data = np.random.random(2, 2)
+        self.data = np.random.random((2, 2))
         data_utils.save_hdf5_dataset('test.h5', 'test_data', self.data, overwrite=True)
 
     def tearDown(self):
         self.dataset = None
-        self.file.close()
-        os.remove('test.h5')
+        if os.path.isfile('test.h5'):
+            os.remove('test.h5')
     
     def test_basic(self):
         np.testing.assert_array_equal(self.data, data_utils.load_hdf5_dataset('test.h5', 'test_data'))
 
     def test_overwriting(self):
         data = np.ones((2, 2))
-        np.testing.assert_arra
+        data_utils.save_hdf5_dataset('test.h5', 'test_data', data, overwrite=True)
+        self.assertEqual(np.any(np.not_equal(self.data, data_utils.load_hdf5_dataset('test.h5', 'test_data'))), True)
+
+    def test_saving_assertions(self):
+        data = np.ones((2, 2))
+        with self.assertRaises(exceptions.FileSaveError):
+            data_utils.save_hdf5_dataset('test.h5', 'test_data', data, overwrite=False)
+
+    def test_loading_assertions(self):
+        os.remove('test.h5')
+        with self.assertRaises(exceptions.FileLoadError):
+            data_utils.load_hdf5_dataset('test.h5', 'test_data')
