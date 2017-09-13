@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 import sys
 import os
 curr_path = os.path.abspath(os.path.dirname(__file__))
-sys.path = [os.path.dirname(curr_path), curr_path] + sys.path
+sys.path = [os.path.dirname(os.path.dirname(curr_path)), curr_path] + sys.path
 curr_path = None
 try:
     import cPickle as pickle
@@ -11,7 +11,7 @@ except:
 import logging
 import csv
 import h5py
-import utils.exceptions as exceptions
+import auto_deepnet.utils.exceptions as exceptions
 
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)

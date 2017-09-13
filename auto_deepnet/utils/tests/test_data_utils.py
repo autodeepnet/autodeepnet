@@ -2,11 +2,11 @@ import unittest
 import sys
 import os
 curr_path = os.path.abspath(os.path.dirname(__file__))
-sys.path = [os.path.dirname(os.path.dirname(curr_path)), curr_path] + sys.path
+sys.path = [os.path.dirname(os.path.dirname(os.path.dirname(curr_path))), curr_path] + sys.path
 os.environ['is_test_suite'] = 'True'
 curr_path = None
-import utils.data_utils as data_utils
-import utils.exceptions as exceptions
+import auto_deepnet.utils.data_utils as data_utils
+import auto_deepnet.utils.exceptions as exceptions
 import logging
 data_utils.logger.setLevel(logging.ERROR)
 
