@@ -128,7 +128,7 @@ def load_hdf5_dataset(file_path, dataset):
     logger.info("Opening File {}...".format(file_path))
     with h5py.File(file_path, 'r') as f:
         try:
-            data = f[dataset][:]
+            data = f[dataset][()]
         except KeyError as e:
             logger.exception("Dataset {} does not exist".format(dataset))
             raise exceptions.FileLoadError("Dataset does not exist")
