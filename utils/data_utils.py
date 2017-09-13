@@ -12,6 +12,7 @@ logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%s(levelname)s:%(message)s', level=logging.DEBUG)
 
 def save_file(file_path, data, overwrite=False):
+    logger.info("Attempting to save data to {} ...".format(file_path))
     dir_name, file_name = os.path.split(file_path)
     if not os.path.isdir(dir_name):
         logger.info("Directory {} does not exist. Creating...".format(dir_name))
@@ -21,7 +22,7 @@ def save_file(file_path, data, overwrite=False):
             logger.error("File {} already exists. Returning...".format(file_path))
             return False
         logger.warning("File {} will be overwritten".format(file_path))
-    logger.info("Opening File {} to write...".format(file_path))
+    logger.info("Opening file {} to write...".format(file_path))
     with open(file_path, "wb") as f:
         logger.info("Pickling and writing to disk...")
         try:
@@ -31,4 +32,16 @@ def save_file(file_path, data, overwrite=False):
             return False
         logger.info("Successful")
         return True
-    
+    logger.error("Something failed. Returning...")
+
+def load_file(file_path):
+    logger.info("Attempting to load data from {} ...".format(file_path))
+    if not os.path.isfile(file_path):
+        logger.error("File {} does not exist. Returning...".format(file_path))
+        return
+    logger.info("Opening file {} to read...".format(file_path))
+    with open(file_path, "rb") as f:
+        data = pickle.load(f)
+        logger.info("Successful")
+        return data
+    logger.error("Something failed. Returning...")
