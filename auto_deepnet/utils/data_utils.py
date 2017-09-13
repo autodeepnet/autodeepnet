@@ -11,6 +11,7 @@ except:
 import logging
 import csv
 import h5py
+import numpy as np
 import auto_deepnet.utils.exceptions as exceptions
 
 logger = logging.getLogger("auto_deepnet")
@@ -135,3 +136,30 @@ def load_hdf5_dataset(file_path, dataset):
             logger.exception("Problem loading dataset: {0}".format(e))
             raise exceptions.FileLoadError
         return data
+
+'''
+function: save_hdf5_dataset
+inputs:
+    - file_path: string pathname to save dataset to
+    - dataset: name of dataset
+    - overwrite (optional): Whether a preexisting dataset should be overwritten
+'''
+def save_hdf5_dataset(file_path, dataset, data, overwrite=False):
+    if not file_path:
+        logger.error("Invalid file path")
+        raise exceptions.FileSaveError("Invalid file path")
+    logger.info("Attempting to save data to {}...".format(file_path))
+    logger.info("Opening File {}...".format(file_path))
+    with h5py.File(file_path, 'a') as f:
+        if dataset in f:
+            if not overwrite:
+                logger.error("Dataset {} already exists!".format(dataset))
+                raise exceptions.FileSaveError("Dataset already exists")
+            logger.warning("Dataset {} already exists and will be overwritten".format(dataset))
+            del f[dataset]
+        try:
+            dset = f.create_dataset(dataset, data=data)
+        except Exception as e:
+            logger.exception("Problem Creating Dataset: {0}".format(e))
+            raise exceptions.FileSaveError
+
