@@ -9,7 +9,7 @@ import csv
 
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)
-logging.basicConfig(format='%s(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 '''
 function: save_file_pickle
@@ -21,11 +21,11 @@ description:
     helper function to save any data to disk via pickling
 '''
 def save_file_pickle(file_path, data, overwrite=False):
-    logger.info("Attempting to save data to {} ...".format(file_path))
+    logger.info("Attempting to save data to {}...".format(file_path))
     dir_name, file_name = os.path.split(file_path)
-    if not os.path.isdir(dir_name):
+    if len(dir_name) > 0 and not os.path.isdir(dir_name):
         logger.info("Directory {} does not exist. Creating...".format(dir_name))
-        os.path.mkdirs(dir_name)
+        os.makedirs(dir_name)
     if os.path.isfile(file_path):
         if not overwrite:
             logger.error("File {} already exists. Returning...".format(file_path))
@@ -39,7 +39,7 @@ def save_file_pickle(file_path, data, overwrite=False):
         except Exception as e:
             logger.exception("Failed with Error {0}".format(e))
             return False
-        logger.info("Successful")
+        logger.info("Successfully pickled and saved file")
         return True
     logger.error("Something failed. Returning...")
 
@@ -51,7 +51,7 @@ description:
     helper function to load any pickled data from disk
 '''
 def load_file_pickle(file_path):
-    logger.info("Attempting to load data from {} ...".format(file_path))
+    logger.info("Attempting to load data from {}...".format(file_path))
     if not os.path.isfile(file_path):
         logger.error("File {} does not exist. Returning...".format(file_path))
         return
@@ -62,6 +62,6 @@ def load_file_pickle(file_path):
         except Exception as e:
             logger.exception("Failed with Error {0}".format(e))
             return
-        logger.info("Successful")
+        logger.info("Successfully read and unpickled file")
         return data
     logger.error("Something failed. Returning...")
