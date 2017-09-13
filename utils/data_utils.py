@@ -12,15 +12,15 @@ logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%s(levelname)s:%(message)s', level=logging.DEBUG)
 
 '''
-function: save_file
+function: save_file_pickle
 inputs:
     - file_path: string pathname to save data to
     - data: data to save to disk in any picklable format
     - overwrite: whether a preexisting file should be overwritten
 description:
-    helper function to save any data to disk
+    helper function to save any data to disk via pickling
 '''
-def save_file(file_path, data, overwrite=False):
+def save_file_pickle(file_path, data, overwrite=False):
     logger.info("Attempting to save data to {} ...".format(file_path))
     dir_name, file_name = os.path.split(file_path)
     if not os.path.isdir(dir_name):
@@ -44,13 +44,13 @@ def save_file(file_path, data, overwrite=False):
     logger.error("Something failed. Returning...")
 
 '''
-function: load_file
+function: load_file_pickle
 inputs:
     - file_path: string pathname to load data from
 description:
     helper function to load any pickled data from disk
 '''
-def load_file(file_path):
+def load_file_pickle(file_path):
     logger.info("Attempting to load data from {} ...".format(file_path))
     if not os.path.isfile(file_path):
         logger.error("File {} does not exist. Returning...".format(file_path))
