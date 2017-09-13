@@ -8,7 +8,7 @@ curr_path = None
 import auto_deepnet.utils.data_utils as data_utils
 import auto_deepnet.utils.exceptions as exceptions
 import logging
-data_utils.logger.setLevel(logging.ERROR)
+#data_utils.logger.setLevel(logging.ERROR)
 
 class TestPickle(unittest.TestCase):
 
@@ -38,3 +38,7 @@ class TestPickle(unittest.TestCase):
         with self.assertRaises(exceptions.FileLoadError):
             data_utils.load_file_pickle('s2.pkl')
 
+class TestHDF5(unittest.TestCase):
+    
+    def test_basic(self):
+        pass

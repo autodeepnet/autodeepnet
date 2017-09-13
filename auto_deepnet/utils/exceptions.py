@@ -1,6 +1,3 @@
-'''
-Basic Error
-'''
 class Error(Exception):
     pass
 
