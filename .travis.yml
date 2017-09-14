@@ -1,0 +1,19 @@
+sudo: required
+dist: trusty
+language: python
+services:
+  - docker
+
+install: 'skip'
+
+python:
+  - "2.7"
+
+  - docker pull climbsrocks/auto_ml_tests:latest
+  - pip install coveralls
+
+script: docker run -v $PWD:/tmp/working -w=/tmp/working --rm -it climbsrocks/auto_ml_tests:latest python setup.py nosetests
+
+after_success:
+  - docker cp climbsrocks/auto_ml_tests:latest:/.coverage
+  - coveralls
