@@ -12,6 +12,8 @@ import logging
 import csv
 import h5py
 import numpy as np
+import pandas as pd
+import re
 import auto_deepnet.utils.exceptions as exceptions
 
 logger = logging.getLogger("auto_deepnet")
@@ -20,84 +22,68 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 
 '''
-function: save_file_pickle
+function: save_pickle_data
 inputs:
     - file_path: string pathname to save data to
-    - data: data to save to disk in any picklable format
+    - dataFrame: pandas dataFrame to save to disk in any picklable format
     - overwrite (optional): whether a preexisting file should be overwritten
 description:
     helper function to save any data to disk via pickling
 '''
-def save_file_pickle(file_path, data, overwrite=False):
-    logger.info("Attempting to save data to {}...".format(file_path))
+def save_pickle_data(file_path, dataFrame, **kwargs):
+    logger.info("Pickling and writing to disk...")
     try:
-        dir_name, file_name = os.path.split(file_path)
+        dataFrame.to_pickle(file_path)
     except Exception as e:
-        logger.exception("Error with file path {}: {}".format(file_path, e))
-        raise exceptions.FileSaveError("Invalid file path")
-    if os.path.isdir(dir_name):
-        logger.info("Directory {} does not exist. Creating...".format(dir_name))
-        os.makedirs(dir_name)
-    if os.path.isfile(file_path):
-        if not overwrite:
-            logger.error("File {} already exists".format(file_path))
-            raise exceptions.FileSaveError("File already exists")
-        logger.warning("File {} will be overwritten".format(file_path))
-    logger.info("Opening file {} to write...".format(file_path))
-    with open(file_path, "wb") as f:
-        logger.info("Pickling and writing to disk...")
-        try:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
-        except Exception as e:
-            logger.exception("Failed with Error {0}".format(e))
-            raise exceptions.FileSaveError
-        logger.info("Successfully pickled and saved file")
-        return
-    logger.error("Something failed")
-    raise exceptions.FileSaveError
+        logger.exception("Failed with Error {0}".format(e))
+        raise exceptions.FileSaveError
+    logger.info("Successfully pickled and saved file")
 
 
 '''
-function: load_file_pickle
+function: load_pickle_data
 inputs:
     - file_path: string pathname to load data from
 description:
     helper function to load any pickled data from disk
 '''
-def load_file_pickle(file_path):
-    if not file_path:
-        logger.error("Invalid file path")
-        raise exceptions.FileLoadError("Invalid file path")
-    logger.info("Attempting to load data from {}...".format(file_path))
-    if not os.path.isfile(file_path):
-        logger.error("File {} does not exist".format(file_path))
-        raise exceptions.FileLoadError("File does not exist")
-    logger.info("Opening file {} to read and unpickle...".format(file_path))
-    with open(file_path, "rb") as f:
-        try:
-            data = pickle.load(f)
-        except Exception as e:
-            logger.exception("Failed with Error {0}".format(e))
-            raise exceptions.FileLoadError
-        logger.info("Successfully read and unpickled file")
-        return data
-    logger.error("Something failed")
-    raise exceptions.FileLoadError
+def load_pickle_data(file_path, **kwargs):
+    logger.info("Opening file to read and unpickle...")
+    try:
+        data = pd.read_pickle(file_path)
+    except Exception as e:
+        logger.exception("Failed with Error {0}".format(e))
+        raise exceptions.FileLoadError
+    logger.info("Successfully read and unpickled file")
+    return data
 
 
 '''
-function: get_hdf5_file
+'''
+def save_hdf5_data(file_path, dataFrame, mode='a', key=None, append=False, **kwargs):
+    logger.info("Writing HDF5 to disk...")
+    with pd.HDFStore(file_path, mode=mode) as f:
+        try:
+            f.put(key=key, value=dataFrame, append=append, **kwargs)
+        except Exception as e:
+            logger.exception("Failed with Error {0}".format(e))
+            raise exceptions.FileSaveError
+    logger.info("Successfully saved hdf5 data")
+
+
+'''
+function: load_hdf5_file
 inputs:
     - file_path: string pathname to load data from
     - read_only (optional): whether to load file as a read only file
 description:
     helper function to load an hdf5 file from disk
 '''
-def get_hdf5_file(file_path, read_only=True):
+def load_hdf5_data(file_path, read_only=True, pandas_format=True, key=None, **kwargs):
     if not file_path:
         logger.error("Invalid file path")
         raise exceptions.FileLoadError("Invalid file path")
-    logger.info("Attempting to load data from {}...".format(file_path))
+    logger.info("Attempting to open HDF5 File from {}...".format(file_path))
     mode = 'r' if read_only else 'a'
     if not os.path.isfile(file_path):
         if read_only:
@@ -106,7 +92,7 @@ def get_hdf5_file(file_path, read_only=True):
         logger.info("File {} does not exist. Creating...".format(file_path))
     else:
         logger.info("Opening File {}...".format(file_path))
-    return h5py.File(file_path, mode)
+    return pd.read_hdf(file_path, key=key, mode=mode, **kwargs) if pandas_format else  h5py.File(file_path, mode)
 
 
 '''
@@ -137,6 +123,7 @@ def load_hdf5_dataset(file_path, dataset):
             raise exceptions.FileLoadError
         return data
 
+
 '''
 function: save_hdf5_dataset
 inputs:
@@ -163,3 +150,52 @@ def save_hdf5_dataset(file_path, dataset, data, overwrite=False):
             logger.exception("Problem Creating Dataset: {0}".format(e))
             raise exceptions.FileSaveError
 
+
+'''
+function: load_csv_data
+inputs:
+    - file_path: string pathname to load data from
+    - header (optional): whether there is a header in the csv file
+    - dtype (optional): the data format
+    - converters (optional): converters for any columns
+    - skiprows (optional): lines to skip
+'''
+def load_csv_data(file_path, header='infer', dtype=np.float32, converters=None, skiprows=None):
+    if not (file_path or os.path.isfile(file_path)):
+        logger.error("Invalid file path")
+        raise exceptions.FileLoadError("Invalid file path")
+    logger.info("Loading CSV data from {}...".format(file_path))
+    try:
+        data = pd.read_csv(file_path, header=header, dtype=dtype, converters=converters, skiprows=skiprows)
+    except Exception as e:
+        logger.exception("Problem reading CSV: {0}".format(e))
+        raise exceptiions.FileSaveError
+    logger.info("Successfully loaded CSV data")
+    return data
+
+
+def save_data(file_path, dataFrame, format='hdf5', mode='a', **kwargs):
+    
+    logger.info("Attempting to save data to {}...".format(file_path))
+    try:
+        dir_name, file_name = os.path.split(file_path)
+    except Exception as e:
+        logger.exception("Error with file path {}: {}".format(file_path, e))
+        raise exceptions.FileSaveError("Invalid file path")
+    if not os.path.isdir(dir_name):
+        logger.info("Directory {} does not exist. Creating...".format(dir_name))
+        os.makedirs(dir_name)
+    if os.path.isfile(file_path) and (mode == 'w' or format == 'pickle'):
+        logger.warning("File {} will be overwritten".format(file_path))
+        os.remove(file_path)
+    
+    saver = {
+        'hdf5': save_hdf5_data,
+        'csv': save_csv_data,
+        'pickle': save_pickle_data
+    }
+    try:
+        saver.get(format, save_hdf5_data)(file_path, dataFrame, mode, **kwargs)
+    except Exception as e:
+        logger.exceptions("Error saving file {}".format(file_path))
+        raise exceptions.FileSaveError

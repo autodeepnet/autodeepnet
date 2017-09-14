@@ -16,29 +16,29 @@ class TestPickle(unittest.TestCase):
 
     def setUp(self):
         self.s = 'hello world'
-        data_utils.save_file_pickle('s.pkl', self.s, overwrite=True)
+        data_utils.save_pickle_data('s.pkl', self.s, overwrite=True)
 
     def tearDown(self):
         self.s = None
         os.remove('s.pkl')
     
     def test_basic_pickle(self):
-        self.assertEqual(self.s, data_utils.load_file_pickle('s.pkl'))
+        self.assertEqual(self.s, data_utils.load_pickle_data('s.pkl'))
 
     def test_pickle_overwrite(self):
         a = 'foo'
-        data_utils.save_file_pickle('s.pkl', a, overwrite=True)
-        self.assertEqual(a, data_utils.load_file_pickle('s.pkl'))
+        data_utils.save_pickle_data('s.pkl', a, overwrite=True)
+        self.assertEqual(a, data_utils.load_pickle_data('s.pkl'))
 
     def test_pickle_save_exceptions(self):
         with self.assertRaises(exceptions.FileSaveError):
-            data_utils.save_file_pickle('s.pkl', self.s, overwrite=False)
+            data_utils.save_pickle_data('s.pkl', self.s, overwrite=False)
         with self.assertRaises(exceptions.FileSaveError):
-            data_utils.save_file_pickle(None, self.s)
+            data_utils.save_pickle_data(None, self.s)
 
     def test_pickle_load_exceptions(self):
         with self.assertRaises(exceptions.FileLoadError):
-            data_utils.load_file_pickle('s2.pkl')
+            data_utils.load_pickle_data('s2.pkl')
 
 class TestHDF5(unittest.TestCase):
 
