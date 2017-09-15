@@ -120,19 +120,19 @@ def load_hdf5_data(file_path, read_only=True, pandas_format=True, key=None, **kw
         logger.info("File {} does not exist. Creating...".format(file_path))
     else:
         logger.info("Opening File {}...".format(file_path))
-    if pandas_format:
-        return pd.read_hdf(file_path, key=key, mode=mode, **kwargs)
-    else:
-        with h5py.File(file_path, mode) as f:
-            try:
+    try:
+        if pandas_format:
+            data = pd.read_hdf(file_path, key=key, mode=mode, **kwargs)
+        else:
+            with h5py.File(file_path, mode) as f:
                 data = f[key][()]
-            except KeyError as e:
-                logger.exception("Dataset {} does not exist".format(dataset))
-                raise exceptions.FileLoadError("Dataset does not exist")
-            except Exception as e:
-                logger.exception("Problem loading dataset: {0}".format(e))
-                raise exceptions.FileLoadError
-        return data
+    except KeyError as e:
+        logger.exception("Dataset {} does not exist".format(dataset))
+        raise exceptions.FileLoadError("Dataset does not exist")
+    except Exception as e:
+        logger.exception("Problem loading dataset: {0}".format(e))
+        raise exceptions.FileLoadError
+    return data
 
 
 ##TODO##
@@ -172,7 +172,7 @@ inputs:
     - mode (optional): mode to open file in
     - format (optional): format to save to disk
 '''
-def save_data(file_path, dataFrame, pandas_format=True, mode='a', format='hdf5', **kwargs):
+def save_data(file_path, dataFrame, pandas_format=True, mode='a', format='hdf5', overwrite=False, **kwargs):
     logger.info("Attempting to save data to {}...".format(file_path))
     try:
         dir_name, file_name = os.path.split(file_path)
@@ -182,9 +182,13 @@ def save_data(file_path, dataFrame, pandas_format=True, mode='a', format='hdf5',
     if not os.path.isdir(dir_name):
         logger.info("Directory {} does not exist. Creating...".format(dir_name))
         os.makedirs(dir_name)
-    if os.path.isfile(file_path) and (mode == 'w' or format == 'pickle'):
-        logger.warning("File {} will be overwritten".format(file_path))
-        os.remove(file_path)
+    if os.path.isfile(file_path):
+        if not overwrite:
+            logger.error("File {} already exists.".format(file_path))
+            raise exceptions.FileSaveError
+        if (mode == 'w' or format == 'pickle'):
+            logger.warning("File {} will be overwritten".format(file_path))
+            os.remove(file_path)
     
     saver = {
         'hdf5': save_hdf5_data,
