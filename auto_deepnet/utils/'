@@ -102,8 +102,6 @@ function: load_hdf5_file
 inputs:
     - file_path: string pathname to load data from
     - read_only (optional): whether to load file as a read only file
-    - pandas_format (optional): whether the file was saved in pandas format
-    - key (optional): name of the dataset
 description:
     helper function to load an hdf5 file from disk
 '''
@@ -135,9 +133,60 @@ def load_hdf5_data(file_path, read_only=True, pandas_format=True, key=None, **kw
         return data
 
 
-##TODO##
-def save_csv_data(file_path, dataFrame, **kwargs):
-    pass
+'''
+function: load_hdf5_dataset
+inputs:
+    - file_path: string pathname to load dataset from
+    - dataset: name of the dataset
+description:
+    helper function to load a dataset from an hdf5 file in disk
+'''
+def load_hdf5_dataset(file_path, dataset):
+    if not file_path:
+        logger.error("Invalid file path")
+        raise exceptions.FileLoadError("Invalid file path")
+    logger.info("Attempting to load data from {}...".format(file_path))
+    if not os.path.isfile(file_path):
+        logger.error("File {} does not exist".format(file_path))
+        raise exceptions.FileLoadError("File does not exist")
+    logger.info("Opening File {}...".format(file_path))
+    with h5py.File(file_path, 'r') as f:
+        try:
+            data = f[dataset][()]
+        except KeyError as e:
+            logger.exception("Dataset {} does not exist".format(dataset))
+            raise exceptions.FileLoadError("Dataset does not exist")
+        except Exception as e:
+            logger.exception("Problem loading dataset: {0}".format(e))
+            raise exceptions.FileLoadError
+        return data
+
+
+'''
+function: save_hdf5_dataset
+inputs:
+    - file_path: string pathname to save dataset to
+    - dataset: name of dataset
+    - overwrite (optional): Whether a preexisting dataset should be overwritten
+'''
+def save_hdf5_dataset(file_path, dataset, data, overwrite=False):
+    if not file_path:
+        logger.error("Invalid file path")
+        raise exceptions.FileSaveError("Invalid file path")
+    logger.info("Attempting to save data to {}...".format(file_path))
+    logger.info("Opening File {}...".format(file_path))
+    with h5py.File(file_path, 'a') as f:
+        if dataset in f:
+            if not overwrite:
+                logger.error("Dataset {} already exists!".format(dataset))
+                raise exceptions.FileSaveError("Dataset already exists")
+            logger.warning("Dataset {} already exists and will be overwritten".format(dataset))
+            del f[dataset]
+        try:
+            dset = f.create_dataset(dataset, data=data)
+        except Exception as e:
+            logger.exception("Problem Creating Dataset: {0}".format(e))
+            raise exceptions.FileSaveError
 
 
 '''
