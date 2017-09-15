@@ -80,14 +80,13 @@ class RNNTimeSeriesPredictor(object):
         X_train = X.copy()
         y_train = y.copy()
 
-        # if np.ptp(y) > 1000:
-        # scaled_y = [log(val) for val in y]
-        self.y_scaler = MinMaxScaler(feature_range=(0, 1))
         y_train = np.array(y_train)
+        self.y_scaler = MinMaxScaler(feature_range=(0, 1))
         y_train = y_train.reshape(-1, 1)
         scaled_y = self.y_scaler.fit_transform(y_train)
+        y_train = scaled_y
 
-        transformed_X = self._pandas_to_matrix(X, scaled_y)
+        transformed_X = self._pandas_to_matrix(X, y_train)
 
         # Keras expects input in the format of (num_rows, lookback_window, num_cols)
         # Right now, we have it in the format (num_rows, num_cols)
@@ -95,7 +94,7 @@ class RNNTimeSeriesPredictor(object):
         reformatted_y = []
         for i in range(self.lookback + 1, transformed_X.shape[0]):
             reformatted_X.append(transformed_X[i - self.lookback + 1: i + 1])
-            reformatted_y.append(scaled_y[i])
+            reformatted_y.append(y_train[i])
         reformatted_X = np.array(reformatted_X)
         reformatted_y = np.array(reformatted_y)
 
@@ -155,73 +154,67 @@ class RNNTimeSeriesPredictor(object):
         if batch_size is None:
             batch_size = self.batch_size
         model = Sequential()
-        model.add(LSTM(50, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=True))
-        model.add(LSTM(50))
+        model.add(LSTM(100, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=False))
         model.add(Dense(1))
         model.compile(loss='mse', optimizer='adam')
         return model
 
 
-    # NOTE: you must pass in at least (num_rows_to_predict + lookback) rows so we can do the feature engineering for your prediction rows
-    # We assume the input here is in ascending order, and that you want predictions on the most recent num_rows_to_predict. That is to say, the rows with the highest index location.
-    def predict(self, X, num_rows_to_predict=1):
-        # TODO: we could dynamically try to set the batch_size here if the number of predictions we're trying to get is large
-        # TODO: certainly look into parallelizing this over time. but i think the batch predictions idea is better
-        # TODO: yeah, definitely the batch stuff
-        # TODO: figure out how to send as many predictions as possible through the batch predictor, then the rest through the individual predictor
-        X_predict = X.copy()
-        X_transformed = self.aml_transformation_pipeline.transform_only(X_predict)
-        X_transformed = X_transformed.todense()
-
+    def _make_prediction_groups(self, X, num_rows_to_predict):
         remainder = num_rows_to_predict % self.prediction_small_batch_size
         big_remainder = num_rows_to_predict % self.prediction_big_batch_size
         small_remainder = big_remainder % self.prediction_small_batch_size
 
+        big_remainder_idx = X.shape[0] - big_remainder - 1
+        small_remainder_idx = X.shape[0] - small_remainder - 1
         remainder_idx = X.shape[0] - remainder - 1
 
-        reformatted_X_batch = []
+        reformatted_X_big_batch = []
+        reformatted_X_small_batch = []
         reformatted_X_individuals = []
-        for i in range(X_transformed.shape[0] - num_rows_to_predict, X_transformed.shape[0]):
-            pred_window = X_transformed[i - self.lookback + 1: i + 1]
-            if i > remainder_idx:
+        for i in range(X.shape[0] - num_rows_to_predict, X.shape[0]):
+            pred_window = X[i - self.lookback + 1: i + 1]
+            if i > small_remainder_idx:
                 reformatted_X_individuals.append([pred_window])
+            elif i > big_remainder_idx:
+                reformatted_X_small_batch.append(pred_window)
             else:
-                reformatted_X_batch.append(pred_window)
-        reformatted_X_batch = np.array(reformatted_X_batch)
+                reformatted_X_big_batch.append(pred_window)
+
+        reformatted_X_big_batch = np.array(reformatted_X_big_batch)
+        reformatted_X_small_batch = np.array(reformatted_X_small_batch)
         reformatted_X_individuals = np.array(reformatted_X_individuals)
 
-        batch_predictions = self.trained_small_batch_model.predict(reformatted_X_batch, batch_size=self.prediction_batch_size)
+        return reformatted_X_big_batch, reformatted_X_small_batch, reformatted_X_individuals
+
+
+    # NOTE: you must pass in at least (num_rows_to_predict + lookback) rows so we can do the feature engineering for your prediction rows
+    # We assume the input here is in ascending order, and that you want predictions on the most recent num_rows_to_predict. That is to say, the rows with the highest index location.
+    def predict(self, X, num_rows_to_predict=1):
+
+        X_predict = X.copy()
+        X_transformed = self.aml_transformation_pipeline.transform_only(X_predict)
+        X_transformed = X_transformed.todense()
+
+        # Try to get predictions as rapidly as possible by using the biggest batch size reasonable
+        # We have 3 different predictors, all with the same weights, but with different batch_sizes
+        reformatted_X_big_batch, reformatted_X_small_batch, reformatted_X_individuals = self._make_prediction_groups(X_transformed, num_rows_to_predict)
+
+
+        big_batch_predictions = self.trained_big_batch_model.predict(reformatted_X_big_batch, batch_size=self.prediction_big_batch_size)
+        small_batch_predictions = self.trained_small_batch_model.predict(reformatted_X_small_batch, batch_size=self.prediction_small_batch_size)
 
         individual_predictions = []
         for row in reformatted_X_individuals:
             pred = self.trained_model.predict(row, batch_size=1)
             individual_predictions.append(pred[0])
 
-        raw_predictions = np.vstack((batch_predictions, individual_predictions))
-
-        print(raw_predictions[:100])
-
-        rescaled_predictions = self.y_scaler.inverse_transform(raw_predictions)
-        # rescaled_predictions = [exp(val) for val in raw_predictions]
-        print(rescaled_predictions[:100])
-        # cleaned_predictions = [pred[0] for pred in rescaled_predictions]
-
-        return rescaled_predictions
+        raw_predictions = np.vstack((big_batch_predictions, small_batch_predictions, individual_predictions))
 
 
+        predictions = raw_predictions
+        predictions = self.y_scaler.inverse_transform(predictions)
+        cleaned_predictions = [pred[0] for pred in predictions]
 
-
-
-
-# 1. take in properties to set on self that takes in most of hte params (sklearn api)
-# 2. have a fit property (sklearn api) that takes in very few params, along with both X and y inputs
-# 3. clean data
-    # by default, change to be pct_change_over_prev
-    # future: utility function to enable different look_forward distances
-# 4. transform data from pandas dataframe to 2d matrix using auto_ml's transform_only method
-# 5. reshape into being a 3d matrix
-# 6. train the predictor! for now, just a single keras predictor- no hyperparameter search yet
-# 7. have predict and predict_proba methods
-# later- figure out how to save this
-
+        return cleaned_predictions
 
