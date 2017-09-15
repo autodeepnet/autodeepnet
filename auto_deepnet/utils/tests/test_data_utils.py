@@ -17,7 +17,7 @@ class TestPickle(unittest.TestCase):
 
     def setUp(self):
         self.s = pd.DataFrame(['hello world'])
-        data_utils.save_pickle_data('s_pandas.pkl', self.s_pandas, pandas_format=True)
+        data_utils.save_pickle_data('s_pandas.pkl', self.s, pandas_format=True)
         data_utils.save_pickle_data('s.pkl', self.s, pandas_format=False)
 
     def tearDown(self):
@@ -29,16 +29,12 @@ class TestPickle(unittest.TestCase):
         self.assertEqual(self.s.values, data_utils.load_pickle_data('s.pkl', pandas_format=False))
 
     def test_basic_pickle_pandas(self):
-        np.testing.asert_array_equal(self.s_pandas.values, data_utils.load_pickle_data('s_pandas.pkl', pandas_format=True).values)
+        np.testing.assert_array_equal(self.s.values, data_utils.load_pickle_data('s_pandas.pkl', pandas_format=True).values)
 
     def test_pickle_overwrite(self):
         a = pd.DataFrame(['foo'])
         data_utils.save_pickle_data('s.pkl', a, pandas_format=False)
-        self.assertEqual(a, data_utils.load_pickle_data('s.pkl'))
-
-    def test_pickle_save_exceptions(self):
-        with self.assertRaises(exceptions.FileSaveError):
-            data_utils.save_pickle_data(None, self.s_pandas)
+        self.assertEqual(a.values, data_utils.load_pickle_data('s.pkl', pandas_format=False))
 
     def test_pickle_load_exceptions(self):
         with self.assertRaises(exceptions.FileLoadError):
@@ -72,20 +68,20 @@ class TestHDF5(unittest.TestCase):
     def test_pandas_overwriting(self):
         data = pd.DataFrame(np.ones((2, 2)))
         data_utils.save_hdf5_data('test_pandas.h5', data, pandas_format=True, key='test_data', append=False)
-        self.assertEqual(np.any(np.not_equal(self.data.values, data_utils.load_hdf5_data('test.h5', pandas_format=True, key='test_data'))), True)
+        self.assertEqual(np.any(np.not_equal(self.data.values, data_utils.load_hdf5_data('test_pandas.h5', pandas_format=True, key='test_data').values)), True)
 
     def test_pandas_append(self):
         data = pd.DataFrame(np.random.random((2, 2)))
         data_utils.save_hdf5_data('test_pandas.h5', data, pandas_format=True, key='test_data', append=True)
-        newData = np.concatenate((self.data_pandas.values, data.values))
+        newData = np.concatenate((self.data.values, data.values))
         np.testing.assert_array_equal(newData, data_utils.load_hdf5_data('test_pandas.h5', pandas_format=True, key='test_data').values)
 
     def test_saving_assertions(self):
         data = np.ones((2, 2))
         with self.assertRaises(exceptions.FileSaveError):
-            data_utils.save_hdf5_dataset('test.h5', 'test_data', data, overwrite=False)
+            data_utils.save_hdf5_data('test.h5', data, 'test_data')
 
     def test_loading_assertions(self):
         os.remove('test.h5')
         with self.assertRaises(exceptions.FileLoadError):
-            data_utils.load_hdf5_dataset('test.h5', 'test_data')
+            data_utils.load_hdf5_data('test.h5', 'test_data')

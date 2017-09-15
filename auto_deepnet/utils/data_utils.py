@@ -30,14 +30,15 @@ inputs:
 description:
     helper function to save any data to disk via pickling
 '''
-def save_pickle_data(file_path, dataFrame, pandas_format=True, **kwargs):
+def save_pickle_data(file_path, dataFrame, **kwargs):
     logger.info("Pickling and writing to disk...")
+    pandas_format = kwargs.get('pandas_format', True)
     try:
         if pandas_format:
             dataFrame.to_pickle(file_path)
         else:
             with open(file_path, 'wb') as f:
-                pickle.dump(dataFrame.values)
+                pickle.dump(dataFrame.values, f)
     except Exception as e:
         logger.exception("Failed with Error {0}".format(e))
         raise exceptions.FileSaveError
@@ -72,17 +73,22 @@ function: save_hdf5_data
 inputs:
     - file_path: string pathname to save data to
     - dataFrame: the pandas dataframe to save to disk
+    - key: The name to call the dataset
     - pandas_format (optional): whether to save as a pandas structure or default hdf5
     - mode (optional): The mode to open file as
-    - key (optional): The name to call the dataset
     - append (optional): Whether data should be appended or replaced
 '''
-def save_hdf5_data(file_path, dataFrame, pandas_format=True, mode='a', key=None, append=False, **kwargs):
+def save_hdf5_data(file_path, dataFrame, key, pandas_format=True, mode='a', format='table', append=False, **kwargs):
+    if not key:
+        logger.error("Need a key when saving as an HDF5 File")
+        raise exceptions.FileSaveError
     logger.info("Writing HDF5 to disk...")
     try:
         if pandas_format:
             with pd.HDFStore(file_path, mode=mode) as f:
-                f.put(key=key, value=dataFrame, append=append, **kwargs)
+                if key in f and not append:
+                    f.remove(key)
+                f.put(key=key, value=dataFrame, format=format, append=append, **kwargs)
         else:
             if key == None:
                 logger.error("Need a key when saving as default HDF5 format")
@@ -107,17 +113,14 @@ inputs:
 description:
     helper function to load an hdf5 file from disk
 '''
-def load_hdf5_data(file_path, read_only=True, pandas_format=True, key=None, **kwargs):
+def load_hdf5_data(file_path, key=None, pandas_format=True, mode='r', **kwargs):
     if not file_path:
         logger.error("Invalid file path")
         raise exceptions.FileLoadError("Invalid file path")
     logger.info("Attempting to open HDF5 File from {}...".format(file_path))
-    mode = 'r' if read_only else 'a'
     if not os.path.isfile(file_path):
-        if read_only:
-            logger.error("File {} does not exist".format(file_path))
-            raise exceptions.FileLoadError("File does not exist")
-        logger.info("File {} does not exist. Creating...".format(file_path))
+        logger.error("File {} does not exist".format(file_path))
+        raise exceptions.FileLoadError("File does not exist")
     else:
         logger.info("Opening File {}...".format(file_path))
     try:
@@ -172,7 +175,7 @@ inputs:
     - mode (optional): mode to open file in
     - format (optional): format to save to disk
 '''
-def save_data(file_path, dataFrame, pandas_format=True, mode='a', format='hdf5', overwrite=False, **kwargs):
+def save_data(file_path, dataFrame, key=None, pandas_format=True, mode='a', format='hdf5', overwrite=False, **kwargs):
     logger.info("Attempting to save data to {}...".format(file_path))
     try:
         dir_name, file_name = os.path.split(file_path)
@@ -196,7 +199,7 @@ def save_data(file_path, dataFrame, pandas_format=True, mode='a', format='hdf5',
         'pickle': save_pickle_data
     }
     try:
-        saver.get(format, save_hdf5_data)(file_path, dataFrame, pandas_format, mode, **kwargs)
+        saver.get(format, save_hdf5_data)(file_path, dataFrame, key, pandas_format, mode, **kwargs)
     except Exception as e:
         logger.exceptions("Error saving file {}".format(file_path))
         raise exceptions.FileSaveError
