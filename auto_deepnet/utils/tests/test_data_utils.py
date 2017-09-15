@@ -25,20 +25,21 @@ class TestPickle(unittest.TestCase):
         os.remove('s.pkl')
         os.remove('s_pandas.pkl')
     
-    def test_basic_pickle(self):
+    def test_basic_read(self):
         self.assertEqual(self.s.values, data_utils.load_pickle_data('s.pkl', pandas_format=False))
 
-    def test_basic_pickle_pandas(self):
+    def test_pandas_read(self):
         np.testing.assert_array_equal(self.s.values, data_utils.load_pickle_data('s_pandas.pkl', pandas_format=True).values)
 
-    def test_pickle_overwrite(self):
+    def test_overwrite(self):
         a = pd.DataFrame(['foo'])
         data_utils.save_pickle_data('s.pkl', a, pandas_format=False)
         self.assertEqual(a.values, data_utils.load_pickle_data('s.pkl', pandas_format=False))
 
-    def test_pickle_load_exceptions(self):
+    def test_load_exceptions(self):
         with self.assertRaises(exceptions.FileLoadError):
             data_utils.load_pickle_data('s2.pkl')
+
 
 class TestHDF5(unittest.TestCase):
 
@@ -85,3 +86,15 @@ class TestHDF5(unittest.TestCase):
         os.remove('test.h5')
         with self.assertRaises(exceptions.FileLoadError):
             data_utils.load_hdf5_data('test.h5', 'test_data')
+
+
+class TestSave(unittest.TestCase):
+
+    def test_hdf5(self):
+        pass
+    
+    def test_pickle(self):
+        pass
+
+    def test_csv(self):
+        pass
