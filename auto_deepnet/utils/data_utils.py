@@ -31,7 +31,7 @@ description:
     helper function to save any data to disk via pickling
 '''
 def save_pickle_data(file_path, data_frame, **kwargs):
-    logger.info("Pickling and writing to disk...")
+    logger.info("Opening pickle file {} to write data...".format(file_path))
     pandas_format = kwargs.get('pandas_format', True)
     try:
         if pandas_format:
@@ -42,7 +42,7 @@ def save_pickle_data(file_path, data_frame, **kwargs):
     except Exception as e:
         logger.exception("Failed with Error {0}".format(e))
         raise exceptions.FileSaveError
-    logger.info("Successfully pickled and saved file")
+    logger.info("Successfully saved pickle data")
 
 
 '''
@@ -52,14 +52,14 @@ inputs:
     helper function to load any pickled data from disk
 '''
 def load_pickle_data(file_path, **kwargs):
-    logger.info("Opening file to read and unpickle...")
+    logger.info("Opening pickle file {} to read...".format(file_path))
     try:
         with open(file_path, 'rb') as f:
             data = pickle.load(f)
     except Exception as e:
         logger.exception("Failed with Error {0}".format(e))
         raise exceptions.FileLoadError
-    logger.info("Successfully read and unpickled file")
+    logger.info("Successfully read pickle data")
     return data
 
 
@@ -78,7 +78,7 @@ def save_hdf5_data(file_path, data_frame, key, pandas_format=True, mode='a', for
     if not key:
         logger.error("Need a key when saving as an HDF5 File")
         raise exceptions.FileSaveError
-    logger.info("Writing HDF5 to disk...")
+    logger.info("Opening HDF5 file {} to write data...".format(file_path))
     try:
         if pandas_format:
             with pd.HDFStore(file_path, mode=mode) as f:
@@ -110,15 +110,7 @@ description:
     helper function to load an hdf5 file from disk
 '''
 def load_hdf5_data(file_path, key=None, pandas_format=True, mode='r', **kwargs):
-    if not file_path:
-        logger.error("Invalid file path")
-        raise exceptions.FileLoadError("Invalid file path")
-    logger.info("Attempting to open HDF5 File from {}...".format(file_path))
-    if not os.path.isfile(file_path):
-        logger.error("File {} does not exist".format(file_path))
-        raise exceptions.FileLoadError("File does not exist")
-    else:
-        logger.info("Opening File {}...".format(file_path))
+    logger.info("Opening HDF5 file {} to read...".format(file_path))
     try:
         if pandas_format:
             data = pd.read_hdf(file_path, key=key, mode=mode, **kwargs)
@@ -131,30 +123,35 @@ def load_hdf5_data(file_path, key=None, pandas_format=True, mode='r', **kwargs):
     except Exception as e:
         logger.exception("Problem loading dataset: {0}".format(e))
         raise exceptions.FileLoadError
+    logger.info("Successfully loaded HDF5 data")
     return data
 
 
-##TODO##
+'''
+function: save_csv_data
+inputs:
+    - file_path: string pathname to load data from
+    - data_frame: pandas data to save to csv
+'''
 def save_csv_data(file_path, data_frame, **kwargs):
-    pass
+    logger.info("Opening CSV file {} to write data".format(file_path))
+    try:
+        data_frame.to_csv(file_path, **kwargs)
+    except Exception as e:
+        logger.exception("Problem saving dataset: {0}".format(e))
+        raise exceptions.FileLoadError
+    logger.info("Successfully saved CSV data")
 
 
 '''
 function: load_csv_data
 inputs:
     - file_path: string pathname to load data from
-    - header (optional): whether there is a header in the csv file
-    - dtype (optional): the data format
-    - converters (optional): converters for any columns
-    - skiprows (optional): lines to skip
 '''
-def load_csv_data(file_path, header='infer', dtype=np.float32, converters=None, skiprows=None):
-    if not (file_path or os.path.isfile(file_path)):
-        logger.error("Invalid file path")
-        raise exceptions.FileLoadError("Invalid file path")
-    logger.info("Loading CSV data from {}...".format(file_path))
+def load_csv_data(file_path, **kwargs):
+    logger.info("Opening CSV file {} to read...".format(file_path))
     try:
-        data = pd.read_csv(file_path, header=header, dtype=dtype, converters=converters, skiprows=skiprows)
+        data = pd.read_csv(file_path, **kwargs)
     except Exception as e:
         logger.exception("Problem reading CSV: {0}".format(e))
         raise exceptiions.FileSaveError
