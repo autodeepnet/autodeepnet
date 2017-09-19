@@ -148,12 +148,14 @@ inputs:
     - data_frame: pandas data to save to csv
 '''
 def save_csv_data(file_path, data_frame, **kwargs):
-    append = kwargs.get('append', False)
+    append = kwargs.pop('append', False)
     logger.info("Opening CSV file {} to write data".format(file_path))
     if 'index' not in kwargs:
         kwargs['index'] = False
     if 'mode' not in kwargs:
         kwargs['mode'] = 'w'
+    kwargs.pop('pandas_format', None)
+    kwargs.pop('format', None)
     try:
         if not append:
             data_frame.to_csv(file_path, **kwargs)
@@ -171,12 +173,14 @@ inputs:
     - file_path: string pathname to load data from
 '''
 def load_csv_data(file_path, **kwargs):
+    kwargs.pop('pandas_format', None)
+    kwargs.pop('mode', None)
     logger.info("Opening CSV file {} to read...".format(file_path))
     try:
         data = pd.read_csv(file_path, **kwargs)
     except Exception as e:
         logger.exception("Problem reading CSV: {0}".format(e))
-        raise exceptiions.FileSaveError
+        raise exceptions.FileSaveError
     logger.info("Successfully loaded CSV data")
     return data
 
@@ -199,10 +203,11 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
     if 'key' not in kwargs and save_format == 'hdf5':
         logger.warning("No key specified, defaulting to 'data'")
         kwargs['key'] = 'data'
-    if 'pandas_format' not in kwargs:
-        kwargs['pandas_format'] = True
-    if 'format' not in kwargs:
-        kwargs['format'] = 'table'
+    if save_format != 'csv':
+        if 'pandas_format' not in kwargs:
+            kwargs['pandas_format'] = True
+        if 'format' not in kwargs:
+            kwargs['format'] = 'table'
     if 'append' not in kwargs:
         kwargs['append'] = False
     if 'index' not in kwargs:
@@ -213,7 +218,7 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
     except Exception as e:
         logger.exception("Error with file path {}: {}".format(file_path, e))
         raise exceptions.FileSaveError("Invalid file path")
-    if not os.path.isdir(dir_name):
+    if len(dir_name) > 0 and not os.path.isdir(dir_name):
         logger.info("Directory {} does not exist. Creating...".format(dir_name))
         os.makedirs(dir_name)
     if os.path.isfile(file_path):
@@ -235,7 +240,7 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
     try:
         saver.get(save_format, save_hdf5_data)(file_path, data_frame, mode=mode, **kwargs)
     except Exception as e:
-        logger.exceptions("Error saving file {}".format(file_path))
+        logger.exception("Error saving file {}".format(file_path))
         raise exceptions.FileSaveError
 
 
@@ -246,12 +251,15 @@ inputs:
     - load_format: format to load data as
 '''
 def load_data(file_path, load_format='hdf5', **kwargs):
-    if 'key' not in kwargs:
+    if 'key' not in kwargs and load_format == 'hdf5':
         kwargs['key'] = None
-    if 'pandas_format' not in kwargs:
+    if load_format != 'csv' and 'pandas_format' not in kwargs:
         kwargs['pandas_format'] = True
     if 'mode' not in kwargs:
-        kwargs['mode'] = 'r'
+        if load_format == 'pickle':
+            kwargs['mode'] = 'rb'
+        elif load_format == 'hdf5':
+            kwargs['mode'] = 'r'
     logger.info("Attempting to load data from {}...".format(file_path))
     if not os.path.isfile(file_path):
         logger.error("File {} does not exist".format(file_path))
@@ -261,7 +269,7 @@ def load_data(file_path, load_format='hdf5', **kwargs):
         'pickle': load_pickle_data
     }
     try:
-        loader.get(load_format, load_hdf5_data)(file_path, **kwargs)
+        return loader.get(load_format, load_hdf5_data)(file_path, **kwargs)
     except Exception as e:
-        logger.exceptions("Error loading file {}".format(file_path))
+        logger.exception("Error loading file {}".format(file_path))
         raise exceptions.FileLoadError

@@ -120,13 +120,28 @@ class TestCSV(unittest.TestCase):
     
 
 
-class TestSave(unittest.TestCase):
+class TestSaveLoad(unittest.TestCase):
+
+    def setUp(self):
+        self.data = pd.DataFrame(np.random.random((2, 2)))
+        data_utils.save_data('test.pkl', self.data, save_format='pickle')
+        data_utils.save_data('test.h5', self.data, key='data', save_format='hdf5')
+        data_utils.save_data('test.csv', self.data, save_format='csv')
+        
+    def tearDown(self):
+        self.data = None
+        if os.path.isfile('test.h5'):
+            os.remove('test.h5')
+        if os.path.isfile('test.pkl'):
+            os.remove('test.pkl')
+        if os.path.isfile('test.csv'):
+            os.remove('test.csv')
 
     def test_hdf5(self):
-        pass
+        np.testing.assert_allclose(self.data.values, data_utils.load_data('test.h5', key='data', load_format='hdf5').values)
     
     def test_pickle(self):
-        pass
+        np.testing.assert_allclose(self.data.values, data_utils.load_data('test.pkl', load_format='pickle').values)
 
     def test_csv(self):
-        pass
+        np.testing.assert_allclose(self.data.values, data_utils.load_data('test.csv', load_format='csv').values)
