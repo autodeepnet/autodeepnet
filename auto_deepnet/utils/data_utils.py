@@ -30,20 +30,21 @@ inputs:
 description:
     helper function to save any data to disk via pickling
 '''
-def save_pickle_data(file_path, data_frame, append=False, **kwargs):
+def save_pickle_data(file_path, data_frame, **kwargs):
     logger.info("Opening pickle file {} to write data...".format(file_path))
     pandas_format = kwargs.get('pandas_format', True)
+    append = kwargs.get('append', False)
+    mode = kwargs.get('mode', 'wb')
     if append and os.path.isfile(file_path):
         try:
-            data_frame.append(load_pickle_data(file_path))
-            logger.info(data_frame.values)
+            data_frame = pd.concat((load_pickle_data(file_path), data_frame))
         except Exception as e:
             logger.exception("Error appending data from {}".format(file_path))
     try:
-        if pandas_format:
+        if 'pandas_format' not in kwargs or pandas_format:
             data_frame.to_pickle(file_path)
         else:
-            with open(file_path, 'wb') as f:
+            with open(file_path, mode) as f:
                 pickle.dump(data_frame.values, f)
     except Exception as e:
         logger.exception("Failed with Error {0}".format(e))
@@ -58,9 +59,10 @@ inputs:
     helper function to load any pickled data from disk
 '''
 def load_pickle_data(file_path, **kwargs):
+    mode = kwargs.get('mode', 'rb')
     logger.info("Opening pickle file {} to read...".format(file_path))
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, mode) as f:
             data = pickle.load(f)
     except Exception as e:
         logger.exception("Failed with Error {0}".format(e))
@@ -80,17 +82,19 @@ inputs:
     - format (optional): whether to save as a table or fixed dataset
     - append (optional): Whether data should be appended or replaced
 '''
-def save_hdf5_data(file_path, data_frame, key, pandas_format=True, mode='a', format='table', append=False, **kwargs):
-    if not key:
-        logger.error("Need a key when saving as an HDF5 File")
-        raise exceptions.FileSaveError
+def save_hdf5_data(file_path, data_frame, **kwargs):
+    pandas_format = kwargs.get('pandas_format', True)
+    key = kwargs.get('key', 'data')
+    mode = kwargs.get('mode', 'a')
+    format = kwargs.get('format', 'table')
+    append = kwargs.get('append', False)
     logger.info("Opening HDF5 file {} to write data...".format(file_path))
     try:
         if pandas_format:
             with pd.HDFStore(file_path, mode=mode) as f:
                 if key in f and not append:
                     f.remove(key)
-                f.put(key=key, value=data_frame, format=format, append=append, **kwargs)
+                f.put(key=key, value=data_frame, format=format, append=append)
         else:
             if key == None:
                 logger.error("Need a key when saving as default HDF5 format")
@@ -116,11 +120,14 @@ inputs:
 description:
     helper function to load an hdf5 file from disk
 '''
-def load_hdf5_data(file_path, key=None, pandas_format=True, mode='r', **kwargs):
+def load_hdf5_data(file_path, **kwargs):
+    key = kwargs.get('key', None)
+    pandas_format = kwargs.get('pandas_format', True)
+    mode = kwargs.get('mode', 'r')
     logger.info("Opening HDF5 file {} to read...".format(file_path))
     try:
         if pandas_format:
-            data = pd.read_hdf(file_path, key=key, mode=mode, **kwargs)
+            data = pd.read_hdf(file_path, key=key, mode=mode)
         else:
             with h5py.File(file_path, mode) as f:
                 data = f[key][()]
@@ -128,7 +135,7 @@ def load_hdf5_data(file_path, key=None, pandas_format=True, mode='r', **kwargs):
         logger.exception("Dataset {} does not exist".format(dataset))
         raise exceptions.FileLoadError("Dataset does not exist")
     except Exception as e:
-        logger.exception("Problem loading dataset: {0}".format(e))
+        logger.exception("Problem loading dataset: {0}V[M`V[M`V[M`V[M`V[M`V[M`V[M`V[M`V]]]]]]]]".format(e))
         raise exceptions.FileLoadError
     logger.info("Successfully loaded HDF5 data")
     return data
@@ -140,11 +147,16 @@ inputs:
     - file_path: string pathname to load data from
     - data_frame: pandas data to save to csv
 '''
-def save_csv_data(file_path, data_frame, index=False, append=False, **kwargs):
+def save_csv_data(file_path, data_frame, **kwargs):
+    append = kwargs.get('append', False)
     logger.info("Opening CSV file {} to write data".format(file_path))
+    if 'index' not in kwargs:
+        kwargs['index'] = False
+    if 'mode' not in kwargs:
+        kwargs['mode'] = 'w'
     try:
         if not append:
-            data_frame.to_csv(file_path, index=index, **kwargs)
+            data_frame.to_csv(file_path, **kwargs)
         else:
             data_frame.to_csv(file_path, index=False, mode='a', header=False)
     except Exception as e:
@@ -183,7 +195,18 @@ inputs:
 additional inputs:
     - Any inputs that can be used by other saver functions
 '''
-def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='a', key='data', **kwargs):
+def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='a', **kwargs):
+    if 'key' not in kwargs and save_format == 'hdf5':
+        logger.warning("No key specified, defaulting to 'data'")
+        kwargs['key'] = 'data'
+    if 'pandas_format' not in kwargs:
+        kwargs['pandas_format'] = True
+    if 'format' not in kwargs:
+        kwargs['format'] = 'table'
+    if 'append' not in kwargs:
+        kwargs['append'] = False
+    if 'index' not in kwargs:
+        kwargs['index'] = False
     logger.info("Attempting to save data to {}...".format(file_path))
     try:
         dir_name, file_name = os.path.split(file_path)
@@ -201,7 +224,8 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
             logger.warning("File {} will be overwritten".format(file_path))
             os.remove(file_path)
     if (mode == 'a' and save_format == 'pickle'):
-        logger.warning("Can't append to pickle files. using mode='wb' instead...")
+        logger.warning("Can't use mode='a' for writing to pickle files. using mode='wb' instead...")
+        mode = 'wb'
     
     saver = {
         'hdf5': save_hdf5_data,
@@ -209,7 +233,7 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
         'pickle': save_pickle_data
     }
     try:
-        saver.get(save_format, save_hdf5_data)(file_path, data_frame, key=key, mode=mode, overwrite=overwrite, **kwargs)
+        saver.get(save_format, save_hdf5_data)(file_path, data_frame, mode=mode, **kwargs)
     except Exception as e:
         logger.exceptions("Error saving file {}".format(file_path))
         raise exceptions.FileSaveError
@@ -222,6 +246,12 @@ inputs:
     - load_format: format to load data as
 '''
 def load_data(file_path, load_format='hdf5', **kwargs):
+    if 'key' not in kwargs:
+        kwargs['key'] = None
+    if 'pandas_format' not in kwargs:
+        kwargs['pandas_format'] = True
+    if 'mode' not in kwargs:
+        kwargs['mode'] = 'r'
     logger.info("Attempting to load data from {}...".format(file_path))
     if not os.path.isfile(file_path):
         logger.error("File {} does not exist".format(file_path))
