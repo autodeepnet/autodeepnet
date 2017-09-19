@@ -103,9 +103,10 @@ def save_hdf5_data(file_path, data_frame, key, pandas_format=True, mode='a', for
 function: load_hdf5_file
 inputs:
     - file_path: string pathname to load data from
+    - key (optional): name of the dataset
     - read_only (optional): whether to load file as a read only file
     - pandas_format (optional): whether the file was saved in pandas format
-    - key (optional): name of the dataset
+    - mode (optional): The mode to open the file as
 description:
     helper function to load an hdf5 file from disk
 '''
@@ -164,11 +165,13 @@ function: save_data
 inputs:
     - file_path: string pathname to save data to
     - data_frame: data to save to disk
-    - key: The name to save the data as (required if hdf5 format, deprecated otherwise)
-    - mode (optional): mode to open file in
     - save_format (optional): format to save to disk
     - overwrite (optional): whether to overwrite preexisting data
+    - mode (optional): mode to open file in
+    - key: The name to save the data as (required if hdf5 format, deprecated otherwise)
     - pandas_format (optional): whether to save as a pandas dataframe or as a numpy array
+additional inputs:
+    - Any inputs that can be used by other saver functions
 '''
 def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='a', key='data', **kwargs):
     logger.info("Attempting to save data to {}...".format(file_path))
@@ -202,6 +205,12 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
         raise exceptions.FileSaveError
 
 
+'''
+function: load_data
+inputs:
+    - file_path:
+    - load_format:
+'''
 def load_data(file_path, load_format='hdf5', **kwargs):
     logger.info("Attempting to load data from {}...".format(file_path))
     if not os.path.isfile(file_path):
