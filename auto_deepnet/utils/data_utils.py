@@ -26,7 +26,9 @@ function: save_pickle_data
 inputs:
     - file_path: string pathname to save data to
     - data_frame: pandas data_frame to save to disk in any picklable format
-    - pandas_format: whether to save as a pandas dataframe or as a numpy array
+    - pandas_format (optional): whether to save as a pandas dataframe or as a numpy array
+    - append (optional): whether to append data to preexisting data. Requires data to be in the same format
+    - mode (optional): The mode to open file as
 description:
     helper function to save any data to disk via pickling
 '''
@@ -56,6 +58,7 @@ def save_pickle_data(file_path, data_frame, **kwargs):
 function: load_pickle_data
 inputs:
     - file_path: string pathname to load data from
+    - mode: the mode to open file as
     helper function to load any pickled data from disk
 '''
 def load_pickle_data(file_path, **kwargs):
@@ -76,7 +79,7 @@ function: save_hdf5_data
 inputs:
     - file_path: string pathname to save data to
     - data_frame: the pandas dataframe to save to disk
-    - key: The name to call the dataset
+    - key (optional): The name to call the dataset
     - pandas_format (optional): whether to save as a pandas structure or default hdf5
     - mode (optional): The mode to open file as
     - format (optional): whether to save as a table or fixed dataset
@@ -114,7 +117,6 @@ function: load_hdf5_file
 inputs:
     - file_path: string pathname to load data from
     - key (optional): name of the dataset
-    - read_only (optional): whether to load file as a read only file
     - pandas_format (optional): whether the file was saved in pandas format
     - mode (optional): The mode to open the file as
 description:
@@ -135,7 +137,7 @@ def load_hdf5_data(file_path, **kwargs):
         logger.exception("Dataset {} does not exist".format(dataset))
         raise exceptions.FileLoadError("Dataset does not exist")
     except Exception as e:
-        logger.exception("Problem loading dataset: {0}V[M`V[M`V[M`V[M`V[M`V[M`V[M`V[M`V]]]]]]]]".format(e))
+        logger.exception("Problem loading dataset: {0}".format(e))
         raise exceptions.FileLoadError
     logger.info("Successfully loaded HDF5 data")
     return data
@@ -146,6 +148,9 @@ function: save_csv_data
 inputs:
     - file_path: string pathname to load data from
     - data_frame: pandas data to save to csv
+    - append: whether to append to preexisting data
+    - mode (optional): The mode to open the file as
+    - ALL other inputs to pd.DataFrame.to_csv() (optional)
 '''
 def save_csv_data(file_path, data_frame, **kwargs):
     append = kwargs.pop('append', False)
