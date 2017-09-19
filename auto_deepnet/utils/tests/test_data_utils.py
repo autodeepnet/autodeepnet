@@ -40,6 +40,11 @@ class TestPickle(unittest.TestCase):
         with self.assertRaises(exceptions.FileLoadError):
             data_utils.load_pickle_data('s2.pkl')
 
+    def test_append(self):
+        a = pd.DataFrame(['foo'])
+        data_utils.save_pickle_data('s_pandas.pkl', a, append=True, pandas_format=True)
+        np.testing.assert_array_equal(np.concatenate((self.s.values, a.values)), data_utils.load_pickle_data('s_pandas.pkl', pandas_format=True))
+
 
 class TestHDF5(unittest.TestCase):
 
@@ -86,6 +91,46 @@ class TestHDF5(unittest.TestCase):
         os.remove('test.h5')
         with self.assertRaises(exceptions.FileLoadError):
             data_utils.load_hdf5_data('test.h5', 'test_data')
+
+
+class TestCSV(unittest.TestCase):
+
+    def setUp(self):
+        self.data = pd.DataFrame(np.random.random((2, 2)))
+        data_utils.save_csv_data('test.csv', self.data)
+
+    def tearDown(self):
+        self.data = None
+        if os.path.isfile('test.csv'):
+            os.remove('test.csv')
+    
+    def test_basic_read(self):
+        np.testing.assert_array_equal(self.data.values, data_utils.load_csv_data('test.csv').values)
+
+    def test_overwriting(self):
+        data = pd.DataFrame(np.ones((2, 2)))
+        data_utils.save_csv_data('test.csv', data, mode='w')
+        self.assertEqual(np.any(np.not_equal(self.data.values, data_utils.load_csv_data('test.csv').values)), True)
+    
+    def test_append(self):
+        data = pd.DataFrame(np.ones((2, 2)))
+        data_utils.save_csv_data('test.csv', data, mode='a', header=False)
+        np.testing.assert_array_equal(np.concatenate((self.data.values, data.values)), data_utils.load_csv_data('test.csv').values)
+
+
+'''
+    def test_saving_assertions(self):
+        data = np.ones((2, 2))
+        with self.assertRaises(exceptions.FileSaveError):
+            data_utils.save_hdf5_data('test.h5', data, 'test_data')
+
+    def test_loading_assertions(self):
+        os.remove('test.h5')
+        with self.assertRaises(exceptions.FileLoadError):
+            data_utils.load_hdf5_data('test.h5', 'test_data')
+'''
+
+    
 
 
 class TestSave(unittest.TestCase):
