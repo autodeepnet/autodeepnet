@@ -11,7 +11,6 @@ import auto_deepnet.utils.data_utils as data_utils
 import auto_deepnet.utils.exceptions as exceptions
 import logging
 import pandas as pd
-#data_utils.logger.setLevel(logging.ERROR)
 
 class TestPickle(unittest.TestCase):
 
@@ -24,7 +23,7 @@ class TestPickle(unittest.TestCase):
         self.s = None
         os.remove('s.pkl')
         os.remove('s_pandas.pkl')
-    
+
     def test_basic_read(self):
         self.assertEqual(self.s.values, data_utils.load_pickle_data('s.pkl', pandas_format=False, mode='rb'))
 
@@ -59,7 +58,7 @@ class TestHDF5(unittest.TestCase):
             os.remove('test.h5')
         if os.path.isfile('test_pandas.h5'):
             os.remove('test_pandas.h5')
-    
+
     def test_basic_read(self):
         np.testing.assert_array_equal(self.data.values, data_utils.load_hdf5_data('test.h5', pandas_format=False, key='test_data'))
 
@@ -103,7 +102,7 @@ class TestCSV(unittest.TestCase):
         self.data = None
         if os.path.isfile('test.csv'):
             os.remove('test.csv')
-    
+
     def test_basic_read(self):
         np.testing.assert_allclose(self.data.values, data_utils.load_csv_data('test.csv').values)
 
@@ -117,8 +116,6 @@ class TestCSV(unittest.TestCase):
         data_utils.save_csv_data('test.csv', data, mode='a', header=False)
         np.testing.assert_allclose(np.concatenate((self.data.values, data.values)), data_utils.load_csv_data('test.csv').values)
 
-    
-
 
 class TestSaveLoad(unittest.TestCase):
 
@@ -127,7 +124,7 @@ class TestSaveLoad(unittest.TestCase):
         data_utils.save_data('test.pkl', self.data, save_format='pickle')
         data_utils.save_data('test.h5', self.data, key='data', save_format='hdf5')
         data_utils.save_data('test.csv', self.data, save_format='csv')
-        
+
     def tearDown(self):
         self.data = None
         if os.path.isfile('test.h5'):
@@ -139,7 +136,7 @@ class TestSaveLoad(unittest.TestCase):
 
     def test_hdf5(self):
         np.testing.assert_allclose(self.data.values, data_utils.load_data('test.h5', key='data', load_format='hdf5').values)
-    
+
     def test_pickle(self):
         np.testing.assert_allclose(self.data.values, data_utils.load_data('test.pkl', load_format='pickle').values)
 
