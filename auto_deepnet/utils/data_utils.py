@@ -38,10 +38,11 @@ def save_pickle_data(file_path, data_frame, **kwargs):
     append = kwargs.get('append', False)
     mode = kwargs.get('mode', 'wb')
     if append and os.path.isfile(file_path):
+        logger.info("Opening file to append data...")
         try:
             data_frame = pd.concat((load_pickle_data(file_path), data_frame))
         except Exception as e:
-            logger.exception("Error appending data from {}".format(file_path))
+            logger.exception("Error appending data from {}: {}".format(file_path), e)
     try:
         if 'pandas_format' not in kwargs or pandas_format:
             data_frame.to_pickle(file_path)
@@ -104,6 +105,8 @@ def save_hdf5_data(file_path, data_frame, **kwargs):
                 raise exceptions.FileSaveError
             with h5py.File(file_path, mode) as f:
                 if key in f:
+                    if append:
+                        data_frame = pd.concat((pd.DataFrame(f[key]), data_frame))
                     del f[key]
                 f.create_dataset(key, data=data_frame.values)
     except Exception as e:
@@ -150,22 +153,23 @@ inputs:
     - data_frame: pandas data to save to csv
     - append: whether to append to preexisting data
     - mode (optional): The mode to open the file as
-    - ALL other inputs to pd.DataFrame.to_csv() (optional)
+other inputs:
+    - any inputs to pd.DataFrame.to_csv() (optional)
 '''
 def save_csv_data(file_path, data_frame, **kwargs):
-    append = kwargs.pop('append', False)
     logger.info("Opening CSV file {} to write data".format(file_path))
     if 'index' not in kwargs:
         kwargs['index'] = False
     if 'mode' not in kwargs:
         kwargs['mode'] = 'w'
+    append = kwargs.pop('append', False)
     kwargs.pop('pandas_format', None)
     kwargs.pop('format', None)
     try:
-        if not append:
-            data_frame.to_csv(file_path, **kwargs)
-        else:
+        if append:
             data_frame.to_csv(file_path, index=False, mode='a', header=False)
+        else:
+            data_frame.to_csv(file_path, **kwargs)
     except Exception as e:
         logger.exception("Problem saving dataset: {0}".format(e))
         raise exceptions.FileLoadError
@@ -176,6 +180,8 @@ def save_csv_data(file_path, data_frame, **kwargs):
 function: load_csv_data
 inputs:
     - file_path: string pathname to load data from
+other inputs:
+    - any inputs used by pd.read_csv() (optional)
 '''
 def load_csv_data(file_path, **kwargs):
     kwargs.pop('pandas_format', None)
@@ -254,6 +260,8 @@ function: load_data
 inputs:
     - file_path: string pathname to load data from
     - load_format: format to load data as
+additional inputs:
+    - any inputs used by other loader functions
 '''
 def load_data(file_path, load_format='hdf5', **kwargs):
     if 'key' not in kwargs and load_format == 'hdf5':
