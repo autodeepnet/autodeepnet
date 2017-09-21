@@ -6,10 +6,12 @@ from auto_ml.utils_models import load_ml_model
 from keras.models import Sequential
 from keras.layers import Dense, LSTM
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 from matplotlib import pyplot
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+
+from auto_deepnet.utils.utils_train_model import train_deep_learning_model
 
 class RNNTimeSeriesPredictor(object):
 
@@ -81,10 +83,10 @@ class RNNTimeSeriesPredictor(object):
         y_train = y.copy()
 
         y_train = np.array(y_train)
-        self.y_scaler = MinMaxScaler(feature_range=(0, 1))
-        y_train = y_train.reshape(-1, 1)
-        scaled_y = self.y_scaler.fit_transform(y_train)
-        y_train = scaled_y
+        # self.y_scaler = MinMaxScaler(feature_range=(0, 1))
+        # y_train = y_train.reshape(-1, 1)
+        # scaled_y = self.y_scaler.fit_transform(y_train)
+        # y_train = scaled_y
 
         transformed_X = self._pandas_to_matrix(X, y_train)
 
@@ -111,15 +113,16 @@ class RNNTimeSeriesPredictor(object):
 
         # Fit the RNN model!
         model = self.construct_model(reformatted_X)
+        model, history = train_deep_learning_model(model, reformatted_X, reformatted_y, X_test=None, y_test=None, batch_size=self.batch_size, epochs=self.epochs, verbose=1, shuffle=True)
         self.model = model
-        history = self.model.fit(
-                                 reformatted_X,
-                                 reformatted_y,
-                                 epochs=self.epochs,
-                                 batch_size=self.batch_size,
-                                 verbose=1,
-                                 shuffle=True
-                                 )
+        # history = self.model.fit(
+        #                          reformatted_X,
+        #                          reformatted_y,
+        #                          epochs=self.epochs,
+        #                          batch_size=self.batch_size,
+        #                          verbose=1,
+        #                          shuffle=True
+        #                          )
 
         # Keras assumes that we will have the same batch_size at training and
         # prediction time. This is not particularly useful. Frequently we will
@@ -128,9 +131,9 @@ class RNNTimeSeriesPredictor(object):
         # single predictions (or whatever size the user specifies)
         self._make_prediction_models(reformatted_X)
 
-        pyplot.plot(history.history['loss'], label='train')
-        pyplot.legend()
-        pyplot.savefig('training_charts.png', bbox_inches='tight')
+        # pyplot.plot(history.history['loss'], label='train')
+        # pyplot.legend()
+        # pyplot.savefig('training_charts.png', bbox_inches='tight')
         return self
 
 
@@ -208,12 +211,13 @@ class RNNTimeSeriesPredictor(object):
         for row in reformatted_X_individuals:
             pred = self.trained_model.predict(row, batch_size=1)
             individual_predictions.append(pred[0])
+        individual_predictions = np.array(individual_predictions)
 
         raw_predictions = np.vstack((big_batch_predictions, small_batch_predictions, individual_predictions))
 
 
         predictions = raw_predictions
-        predictions = self.y_scaler.inverse_transform(predictions)
+        # predictions = self.y_scaler.inverse_transform(predictions)
         cleaned_predictions = [pred[0] for pred in predictions]
 
         return cleaned_predictions
