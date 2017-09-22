@@ -157,7 +157,8 @@ class RNNTimeSeriesPredictor(object):
         if batch_size is None:
             batch_size = self.batch_size
         model = Sequential()
-        model.add(LSTM(100, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=False))
+        model.add(LSTM(50, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=True))
+        model.add(LSTM(5, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=False))
         model.add(Dense(1))
         model.compile(loss='mse', optimizer='adam')
         return model
@@ -203,15 +204,20 @@ class RNNTimeSeriesPredictor(object):
         # We have 3 different predictors, all with the same weights, but with different batch_sizes
         reformatted_X_big_batch, reformatted_X_small_batch, reformatted_X_individuals = self._make_prediction_groups(X_transformed, num_rows_to_predict)
 
-
-        big_batch_predictions = self.trained_big_batch_model.predict(reformatted_X_big_batch, batch_size=self.prediction_big_batch_size)
-        small_batch_predictions = self.trained_small_batch_model.predict(reformatted_X_small_batch, batch_size=self.prediction_small_batch_size)
-
         individual_predictions = []
         for row in reformatted_X_individuals:
             pred = self.trained_model.predict(row, batch_size=1)
             individual_predictions.append(pred[0])
         individual_predictions = np.array(individual_predictions)
+
+        if reformatted_X_big_batch.shape[0] > 0:
+            big_batch_predictions = self.trained_big_batch_model.predict(reformatted_X_big_batch, batch_size=self.prediction_big_batch_size)
+        else:
+            big_batch_predictions = np.empty(shape=(0, individual_predictions.shape[1]))
+        if reformatted_X_small_batch.shape[0] > 0:
+            small_batch_predictions = self.trained_small_batch_model.predict(reformatted_X_small_batch, batch_size=self.prediction_small_batch_size)
+        else:
+            small_batch_predictions = np.empty(shape=(0, individual_predictions.shape[1]))
 
         raw_predictions = np.vstack((big_batch_predictions, small_batch_predictions, individual_predictions))
 
