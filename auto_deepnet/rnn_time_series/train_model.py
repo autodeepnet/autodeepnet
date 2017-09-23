@@ -41,6 +41,7 @@ class RNNTimeSeriesPredictor(object):
         self.verbose=True
         self.prediction_big_batch_size = 512
         self.prediction_small_batch_size = 16
+        self.aml_transformation_pipeline = None
 
         self.column_descriptions[str(self.output_column_name)] = 'output'
 
@@ -49,36 +50,65 @@ class RNNTimeSeriesPredictor(object):
         # Use auto_ml (http://auto.ml) for it's feature transformation.
         # This transforms a pandas DataFrame into a scipy.sparse matrix,
         # handling a bunch of the one-hot-encoding and missing values and such along the way
-        ml_predictor = Predictor(
-                                 type_of_estimator=self.type_of_estimator,
-                                 column_descriptions=self.column_descriptions
-                                 )
 
-        X[str(self.output_column_name)] = y
+        if self.aml_transformation_pipeline is None:
 
-        if self.type_of_estimator == 'classifier':
-            model_name = 'LogisticRegression'
-        elif self.type_of_estimator == 'regressor':
-            model_name = 'LinearRegression'
-        ml_predictor.train(
-                           X,
-                           perform_feature_scaling=True,
-                           perform_feature_selection=False,
-                           model_names=model_name
-                           )
+            ml_predictor = Predictor(
+                                     type_of_estimator=self.type_of_estimator,
+                                     column_descriptions=self.column_descriptions
+                                     )
 
-        t_pipeline_name = '__transformation_pipeline.dill'
-        ml_predictor.save(t_pipeline_name)
-        self.aml_transformation_pipeline = load_ml_model(t_pipeline_name)
-        os.remove(t_pipeline_name)
+            X[str(self.output_column_name)] = y
+
+            if self.type_of_estimator == 'classifier':
+                model_name = 'LogisticRegression'
+            elif self.type_of_estimator == 'regressor':
+                model_name = 'LinearRegression'
+            ml_predictor.train(
+                               X,
+                               perform_feature_scaling=True,
+                               perform_feature_selection=False,
+                               model_names=model_name
+                               )
+
+            t_pipeline_name = '__transformation_pipeline.dill'
+            ml_predictor.save(t_pipeline_name)
+            self.aml_transformation_pipeline = load_ml_model(t_pipeline_name)
+            os.remove(t_pipeline_name)
 
         transformed_X = self.aml_transformation_pipeline.transform_only(X)
         transformed_X = transformed_X.todense()
 
         return transformed_X
 
+    def refit(self, X, y, epochs=None):
+        print('Now continuing to train the already fitted model')
+        if epochs is None:
+            epochs = self.epochs
 
-    def fit(self, X, y):
+        reformatted_X, reformatted_y = self.transform_X_y(X, y)
+
+        # Fit the RNN model!
+        model = self.model
+        model, history = train_deep_learning_model(model, reformatted_X, reformatted_y, X_test=None, y_test=None, batch_size=self.batch_size, epochs=epochs, verbose=1, shuffle=True)
+        self.model = model
+
+        # Keras assumes that we will have the same batch_size at training and
+        # prediction time. This is not particularly useful. Frequently we will
+        # want to train in batch, but predict just one at a time.
+        # The following is a hack to train using batches, but predict using
+        # single predictions (or whatever size the user specifies)
+        self._make_prediction_models(reformatted_X)
+
+        # pyplot.plot(history.history['loss'], label='train')
+        # pyplot.legend()
+        # pyplot.savefig('training_charts.png', bbox_inches='tight')
+        return self
+
+
+
+
+    def transform_X_y(self, X, y):
         X_train = X.copy()
         y_train = y.copy()
 
@@ -111,6 +141,12 @@ class RNNTimeSeriesPredictor(object):
         reformatted_X = reformatted_X[remainder:]
         reformatted_y = reformatted_y[remainder:]
 
+        return reformatted_X, reformatted_y
+
+    def fit(self, X, y):
+
+        reformatted_X, reformatted_y = self.transform_X_y(X, y)
+
         # Fit the RNN model!
         model = self.construct_model(reformatted_X)
         model, history = train_deep_learning_model(model, reformatted_X, reformatted_y, X_test=None, y_test=None, batch_size=self.batch_size, epochs=self.epochs, verbose=1, shuffle=True)
@@ -135,6 +171,10 @@ class RNNTimeSeriesPredictor(object):
         # pyplot.legend()
         # pyplot.savefig('training_charts.png', bbox_inches='tight')
         return self
+
+
+    # def keep_fitting(self, X, y):
+
 
 
     def _make_prediction_models(self, X):
