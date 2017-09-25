@@ -14,7 +14,8 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class Base(object):
     def __init__(self,
-                 input_dim=None,
+                 input_shape=None,
+                 output_shape=None,
                  batch_size=512,
                  prediction_batch_size=16,
                  epochs=50,
@@ -25,11 +26,14 @@ class Base(object):
                  verbose=True,
                  model_path='./model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
                  **kwargs):
-        if not input_dim:
-            logger.error("Input Dimension Missing!")
+        if not input_shape:
+            logger.error("Input Shape Missing!")
             raise Exception
+        if not output_shape:
+            logger.error("Output Shape Missing!")
         self.config = self._generate_config(
-            input_dim=input_dim,
+            input_shape=input_shape,
+            output_shape=output_shape,
             batch_size=batch_size,
             prediction_batch_size=prediction_batch_size,
             epochs=epochs,

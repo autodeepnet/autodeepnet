@@ -19,7 +19,8 @@ class TestBase(unittest.TestCase):
 
     def setUp(self):
         self.correct_config = {
-                'input_dim': 256,
+                'input_shape': (None, 256),
+                'output_shape': (None, 5),
                 'batch_size': 512,
                 'epochs': 50,
                 'prediction_batch_size': 16,
@@ -46,13 +47,13 @@ class TestBase(unittest.TestCase):
         self.assertDictEqual(self.base.get_config(), self.correct_config)
 
     def test_update_options(self):
-        self.base.update_config(**{'input_dim': 65, 'foo': 'bar'})
-        self.correct_config['input_dim'] = 65
+        self.base.update_config(**{'input_shape': 65, 'foo': 'bar'})
+        self.correct_config['input_shape'] = 65
         self.correct_config['foo'] = 'bar'
         self.assertDictEqual(self.base.get_config(), self.correct_config)
 
     def test_generate_kwargs(self):
-        kwargs = self.base._generate_kwargs('input_dim', 'batch_size', **{'input_dim': 5})
-        self.assertDictEqual(kwargs, {'input_dim': 5, 'batch_size': self.correct_config['batch_size']})
+        kwargs = self.base._generate_kwargs('input_shape', 'batch_size', **{'input_shape': 5})
+        self.assertDictEqual(kwargs, {'input_shape': 5, 'batch_size': self.correct_config['batch_size']})
 
 
