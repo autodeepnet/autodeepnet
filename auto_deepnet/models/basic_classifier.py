@@ -25,9 +25,9 @@ class BasicClassifier(Base):
         input_dim = self.config['input_dim']
         for i, layer in enumerate(self.config['layers']):
             if i == 0:
-                self.model.add(Dense(layer[0]*input_dim, input_dim=input_dim))
+                self.model.add(Dense(int(layer[0]*input_dim), input_dim=input_dim))
             else:
-                self.model.add(Dense(layer[0]*input_dim))
+                self.model.add(Dense(int(layer[0]*input_dim)))
             self.model.add(Activation(layer[1]))
             self.model.add(Dropout(self.config['dropout']))
         self.model.compile(optimizer=self.config['optimizer'],

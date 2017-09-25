@@ -12,6 +12,9 @@ import auto_deepnet.utils.exceptions as exceptions
 import logging
 import pandas as pd
 
+logger = logging.getLogger("auto_deepnet")
+logger.setLevel(logging.CRITICAL)
+
 class TestPickle(unittest.TestCase):
 
     def setUp(self):
