@@ -197,8 +197,8 @@ class RNNTimeSeriesPredictor(object):
         if batch_size is None:
             batch_size = self.batch_size
         model = Sequential()
-        model.add(LSTM(50, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=True))
-        model.add(LSTM(5, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=False))
+        model.add(LSTM(40, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=True))
+        model.add(LSTM(20, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=False))
         model.add(Dense(1))
         model.compile(loss='mse', optimizer='adam')
         return model
