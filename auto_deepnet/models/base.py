@@ -4,7 +4,7 @@ import os
 curr_path = os.path.abspath(os.path.dirname(__file__))
 sys.path = [os.path.dirname(os.path.dirname(curr_path)), curr_path] + sys.path
 curr_path = None
-from auto_deepnet.utils import data_utils
+from auto_deepnet.utils import data_io_utils
 import logging
 
 logger = logging.getLogger("auto_deepnet")
@@ -14,8 +14,6 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class Base(object):
     def __init__(self,
-                 input_shape=None,
-                 output_shape=None,
                  batch_size=512,
                  prediction_batch_size=16,
                  epochs=50,
@@ -24,16 +22,10 @@ class Base(object):
                  loss='categorical_crossentropy',
                  metrics=['accuracy'],
                  verbose=True,
-                 model_path='./model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
+                 model_checkpoint_path='./model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
+                 model_path='./model.tar',
                  **kwargs):
-        if not input_shape:
-            logger.error("Input Shape Missing!")
-            raise Exception
-        if not output_shape:
-            logger.error("Output Shape Missing!")
         self.config = self._generate_config(
-            input_shape=input_shape,
-            output_shape=output_shape,
             batch_size=batch_size,
             prediction_batch_size=prediction_batch_size,
             epochs=epochs,
@@ -44,7 +36,6 @@ class Base(object):
             verbose=verbose,
             model_path=model_path,
             **kwargs)
-        self.build_model()
 
     def update_config(self, **kwargs):
         self.config.update(kwargs)
@@ -60,11 +51,17 @@ class Base(object):
     def get_config(self):
         return self.config
 
-    def build_model(self):
+    def build_model(self, **kwargs):
         pass
 
-    def fit(X, Y, **kwargs):
+    def fit(self, X, Y, **kwargs):
         pass
 
-    def predict(X, **kwargs):
+    def predict(self, X, **kwargs):
+        pass
+
+    def save(self, filename, **kwargs):
+        pass
+
+    def load(self, filename, **kwargs):
         pass
