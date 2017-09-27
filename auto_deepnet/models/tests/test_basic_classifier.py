@@ -16,31 +16,34 @@ from keras.utils.np_utils import to_categorical
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.CRITICAL)
 
-nn = BasicClassifier(dropout=1.0, epochs=10, verbose=1, layers=[(2., 'tanh'), (2., 'tanh'), (1.5, 'relu')])
-X = np.random.randn(100000, 5)
-Y = np.argmax(X, axis=1)
-nn.fit(X, Y)
-nn.save_adn_model()
-'''
-model = BasicClassifier()
-model = Sequential()
-model.add(Dense(5, input_dim=5))
-model.add(Activation('relu'))
-model.add(Dense(5))
-model.add(Activation('relu'))
-model.add(Dense(5))
-model.add(Activation('softmax'))
-X = np.random.randn(60000, 5)
-Y = to_categorical(np.argmax(X, axis=1), 5)
-X_dev = np.random.randn(20000, 5)
-Y_dev = to_categorical(np.argmax(X_dev, axis=1), 5)
-X_test = np.random.randn(20000, 5)
-Y_test = to_categorical(np.argmax(X_test, axis=1))
-X_predict = np.random.randn(2000, 5)
-Y_predict = np.argmax(X_predict, axis=1)
-model.compile(loss='categorical_crossentropy', optimizer='adagrad')
-model.fit(X, Y, batch_size=256, validation_data=(X_dev, Y_dev), epochs=20, verbose=1)
-print(model.test_on_batch(X_test, Y_test))
-print(np.sum(np.argmax(model.predict(X_predict), axis=1) - Y_predict))
-correct = 0.453789
-'''
+class TestBase(unittest.TestCase):
+
+    def setUp(self):
+        self.config = {
+                'batch_size': 32,
+                'epochs': 10,
+                'dropout': 1.,
+                'optimizer': 'adagrad',
+                'loss': 'categorical_crossentropy',
+                'metrics': ['accuracy'],
+                'verbose': 0,
+                'model_checkpoint_path': './model_checkpoint.hdf5',
+                'model_path': './model.tgz'
+                }
+        self.nn = BasicClassifier(**self.config)
+
+    def tearDown(self):
+        self.nn = None
+        if os.path.isfile(self.config['model_path']):
+            os.remove(self.config['model_path'])
+        if os.path.isfile(self.config['model_checkpoint_path']):
+            os.remove(self.config['model_checkpoint_path'])
+
+    def test_sample_dataset_training(self):
+        X_train = np.random.randn(10000, 5)
+        Y_train = np.argmax(X_train, axis=1)
+        self.nn.fit(X_train, Y_train)
+        X_test = np.random.randn(1000, 5)
+        Y_test = np.argmax(X_test, axis=1)
+        np.testing.assert_allclose([0.46882305932044982, 0.87], self.nn.model.evaluate(X_test, Y_test))
+
