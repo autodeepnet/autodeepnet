@@ -51,15 +51,6 @@ def train_deep_learning_model(model, X, y, X_test=None, y_test=None, batch_size=
         model = load_model(temp_file_name)
         hist = None
 
-    except Exception as e:
-        print('Caught the following exception')
-        print(e)
-
-        print('Now trying to load the best model checkpoint, and returning that, so you have the best of your progress')
-
-        model = load_model(temp_file_name)
-        hist = None
-
     return model, hist
 
 
