@@ -6,6 +6,9 @@ sys.path = [os.path.dirname(os.path.dirname(curr_path)), curr_path] + sys.path
 curr_path = None
 from auto_deepnet.utils import data_io_utils
 import logging
+import tarfile
+import pandas as pd
+from keras.models import load_model
 
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)
@@ -35,6 +38,7 @@ class Base(object):
             metrics=metrics,
             verbose=verbose,
             model_path=model_path,
+            model_checkpoint_path=model_checkpoint_path,
             **kwargs)
 
     def update_config(self, **kwargs):
@@ -60,8 +64,30 @@ class Base(object):
     def predict(self, X, **kwargs):
         pass
 
-    def save(self, filename, **kwargs):
-        pass
+    def save_adn_model(self, model_path=None, **kwargs):
+        if not model_path:
+            model_path = self.config['model_path']
+        dir_name, file_name = os.path.split(model_path)
+        if len(dir_name) == 0:
+            dir_name = '.'
+        config_path = os.path.join(dir_name, 'config.pkl')
+        keras_model_path = os.path.join(dir_name, 'keras_model.h5')
+        data_io_utils.save_data(config_path, self.config, data_is_pandas=False, save_format='pickle', mode='wb', overwrite=True)
+        self.model.save(keras_model_path)
+        with tarfile.open(model_path, mode='w:gz') as f:
+            f.add(config_path, arcname='config.pkl')
+            f.add(keras_model_path, arcname='keras_model.h5')
+        os.remove(config_path)
+        os.remove(keras_model_path)
+        
 
-    def load(self, filename, **kwargs):
-        pass
+    def load_adn_model(self, model_path=None, **kwargs):
+        if not model_path:
+            model_path = self.config['model_path']
+        dir_name, _ = os.path.split(model_path)
+        if len(dir_name) == 0:
+            dir_name = '.'
+        with tarfile.open(model_path, mode='r:gz') as f:
+            f.extractall(dir_name)
+        self.config = data_io_utils.load_data(os.path.join(dir_name, 'config.pkl'), load_format='pickle', mode='rb')
+        self.model = load_model(os.path.join(dir_name, 'keras_model.h5'))

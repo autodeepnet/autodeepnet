@@ -24,23 +24,24 @@ class BasicClassifier(Base):
     def __init__(self, layers=[(1., 'relu'), (1., 'relu')], **kwargs):
         super(BasicClassifier, self).__init__(layers=layers, **kwargs)
 
-    def build_model(self, input_shape=None, num_classes=None, **kwargs):
-        if not input_shape:
-            logger.error("Need an input shape!")
+    def build_model(self, **kwargs):
+        d_x = self.config.get('d_x', None)
+        d_y = self.config.get('d_y', None)
+        if not d_x:
+            logger.error("Need an input dimension!")
             raise Exception
-        if not num_classes:
+        if not d_y:
             logger.error("Need the num_classes!")
             raise Exception
         self.model = Sequential()
-        input_dim = input_shape[1]
         for i, layer in enumerate(self.config['layers']):
             if i == 0:
-                self.model.add(Dense(int(layer[0]*input_dim), input_dim=input_dim))
+                self.model.add(Dense(int(layer[0]*d_x), input_dim=d_x))
             else:
-                self.model.add(Dense(int(layer[0]*input_dim)))
+                self.model.add(Dense(int(layer[0]*d_x)))
             self.model.add(Activation(layer[1]))
             self.model.add(Dropout(self.config['dropout']))
-        self.model.add(Dense(num_classes))
+        self.model.add(Dense(d_y))
         self.model.add(Activation('softmax'))
         self.model.compile(optimizer=self.config['optimizer'],
                       loss=self.config['loss'],
@@ -49,25 +50,26 @@ class BasicClassifier(Base):
 
 
     def fit(self, X, Y, **kwargs):
-        self.data_pipeline = kwargs.pop('data_pipeline', data_transform_utils.basic_classifier_input_pipeline)
+
+        self.config['data_pipeline'] = kwargs.pop('data_pipeline', 'basic_classifier_input_pipeline')
         try:
-            X, Y, self.data_info = self.data_pipeline(X, Y)
+            X, Y, self.config['data_info'] = getattr(data_transform_utils, self.config['data_pipeline'])(X, Y)
         except Exception as e:
             logger.exception("Error with data pipeline")
             raise exceptions.DataTransformError("Error with data pipeline")
-        input_dims = X.shape[1]
-        if self.data_info['data_type'] == 'sparse':
-            num_classes = kwargs.pop('num_classes', np.max(Y) + 1)
+        self.config['d_x'] = X.shape[1]
+        if self.config['data_info']['data_type'] == 'sparse':
+            self.config['d_y'] = kwargs.pop('num_classes', np.max(Y) + 1)
         else:
-            num_classes = Y.shape[1]
-        if self.data_info['data_type'] == 'sparse' and self.config['loss'] == 'categorical_crossentropy':
+            self.config['d_y'] = Y.shape[1]
+        if self.config['data_info']['data_type'] == 'sparse' and self.config['loss'] == 'categorical_crossentropy':
             logger.info("Dataset is sparse, changing loss to sparse categorical crossentropy")
             self.config['loss'] = 'sparse_categorical_crossentropy'
-        self.build_model(input_shape=X.shape, output_shape=Y.shape, num_classes=num_classes)
+        self.build_model()
         if 'callbacks' not in kwargs:
             kwargs['callbacks'] = [
                 ModelCheckpoint(
-                    self.config['model_path'],
+                    self.config['model_checkpoint_path'],
                     monitor='val_loss',
                     verbose=self.config['verbose'],
                     save_best_only=True,

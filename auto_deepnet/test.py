@@ -5,5 +5,5 @@ nn = BasicClassifier(dropout=1.0, epochs=10, verbose=1, layers=[(2., 'tanh'), (2
 X = np.random.randn(100000, 5)
 Y = np.argmax(X, axis=1)
 nn.fit(X, Y)
-
+nn.save_adn_model()
 

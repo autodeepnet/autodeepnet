@@ -35,16 +35,20 @@ description:
 def save_pickle_data(file_path, data_frame, **kwargs):
     logger.info("Opening pickle file {} to write data...".format(file_path))
     pandas_format = kwargs.get('pandas_format', True)
+    data_is_pandas = kwargs.get('data_is_pandas', True)
     append = kwargs.get('append', False)
     mode = kwargs.get('mode', 'wb')
-    if append and os.path.isfile(file_path):
+    if append and os.path.isfile(file_path) and data_is_pandas:
         logger.info("Opening file to append data...")
         try:
             data_frame = pd.concat((load_pickle_data(file_path), data_frame))
         except Exception as e:
             logger.exception("Error appending data from {}: {}".format(file_path), e)
     try:
-        if 'pandas_format' not in kwargs or pandas_format:
+        if not data_is_pandas:
+            with open(file_path, mode) as f:
+                pickle.dump(data_frame, f)
+        elif pandas_format:
             data_frame.to_pickle(file_path)
         else:
             with open(file_path, mode) as f:
