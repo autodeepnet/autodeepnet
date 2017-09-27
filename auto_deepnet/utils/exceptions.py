@@ -10,4 +10,5 @@ class FileLoadError(Error):
 class DataTransformError(Error):
     pass
 
-
+class AutoDeepNetModelError(Error):
+    pass

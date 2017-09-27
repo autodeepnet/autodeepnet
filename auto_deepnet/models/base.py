@@ -4,7 +4,7 @@ import os
 curr_path = os.path.abspath(os.path.dirname(__file__))
 sys.path = [os.path.dirname(os.path.dirname(curr_path)), curr_path] + sys.path
 curr_path = None
-from auto_deepnet.utils import data_io_utils
+from auto_deepnet.utils import data_io_utils, exceptions
 import logging
 import tarfile
 import pandas as pd
@@ -25,8 +25,8 @@ class Base(object):
                  loss='categorical_crossentropy',
                  metrics=['accuracy'],
                  verbose=True,
-                 model_checkpoint_path='./model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
-                 model_path='./model.tar',
+                 model_checkpoint_path='./model/model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
+                 model_path='./model/model.tgz',
                  **kwargs):
         self.config = self._generate_config(
             batch_size=batch_size,
@@ -40,6 +40,8 @@ class Base(object):
             model_path=model_path,
             model_checkpoint_path=model_checkpoint_path,
             **kwargs)
+        data_io_utils.verify_dir(model_checkpoint_path)
+        data_io_utils.verify_dir(model_path)
 
     def update_config(self, **kwargs):
         self.config.update(kwargs)
@@ -67,17 +69,15 @@ class Base(object):
     def save_adn_model(self, model_path=None, **kwargs):
         if not model_path:
             model_path = self.config['model_path']
-        try:
-            data_io_utils.save_adn_model(model_path)
-        except Exception as e:
-            logger.exception("Error saving model: {}".format(e))
-            raise Exception
-        
+        data_io_utils.save_adn_model(model_path)
 
     def load_adn_model(self, model_path=None, **kwargs):
         if not model_path:
             model_path = self.config['model_path']
+        adn_model = data_io_utils.load_adn_model(model_path)
+        if not adn_model:
+            return
         try:
-            self.config, self.model = data_io_utils.load_adn_model(model_path)
+            self.config, self.model = adn_model
         except Exception as e:
-            logger.exception("Error loading model: {}".format(e))
+            logger.exception("Error loading data from adn model: {}".format(e))

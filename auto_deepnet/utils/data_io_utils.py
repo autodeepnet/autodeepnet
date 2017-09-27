@@ -22,6 +22,17 @@ logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 
+def verify_dir(file_path):
+    try:
+        dir_name, file_name = os.path.split(file_path)
+    except Exception as e:
+        logger.error("Error with file path {}: {}".format(file_path, e))
+        raise exceptions.FileSaveError("Invalid file path")
+    if len(dir_name) > 0 and not os.path.isdir(dir_name):
+        logger.info("Directory {} does not exist. Creating...".format(dir_name))
+        os.makedirs(dir_name)
+
+
 '''
 function: save_pickle_data
 inputs:
@@ -46,18 +57,14 @@ def save_pickle_data(file_path, data_frame, **kwargs):
             data_frame = pd.concat((load_pickle_data(file_path), data_frame))
         except Exception as e:
             logger.error("Error appending data from {}: {}".format(file_path), e)
-    try:
-        if not data_is_pandas:
-            with open(file_path, mode) as f:
-                pickle.dump(data_frame, f)
-        elif pandas_format:
-            data_frame.to_pickle(file_path)
-        else:
-            with open(file_path, mode) as f:
-                pickle.dump(data_frame.values, f)
-    except Exception as e:
-        logger.error("Failed with Error {0}".format(e))
-        raise exceptions.FileSaveError
+    if not data_is_pandas:
+        with open(file_path, mode) as f:
+            pickle.dump(data_frame, f)
+    elif pandas_format:
+        data_frame.to_pickle(file_path)
+    else:
+        with open(file_path, mode) as f:
+            pickle.dump(data_frame.values, f)
     logger.info("Successfully saved pickle data")
 
 
@@ -71,12 +78,8 @@ inputs:
 def load_pickle_data(file_path, **kwargs):
     mode = kwargs.get('mode', 'rb')
     logger.info("Opening pickle file {} to read...".format(file_path))
-    try:
-        with open(file_path, mode) as f:
-            data = pickle.load(f)
-    except Exception as e:
-        logger.error("Failed with Error {0}".format(e))
-        raise exceptions.FileLoadError
+    with open(file_path, mode) as f:
+        data = pickle.load(f)
     logger.info("Successfully read pickle data")
     return data
 
@@ -99,25 +102,21 @@ def save_hdf5_data(file_path, data_frame, **kwargs):
     format = kwargs.get('format', 'table')
     append = kwargs.get('append', False)
     logger.info("Opening HDF5 file {} to write data...".format(file_path))
-    try:
-        if pandas_format:
-            with pd.HDFStore(file_path, mode=mode) as f:
-                if key in f and not append:
-                    f.remove(key)
-                f.put(key=key, value=data_frame, format=format, append=append)
-        else:
-            if key == None:
-                logger.error("Need a key when saving as default HDF5 format")
-                raise exceptions.FileSaveError
-            with h5py.File(file_path, mode) as f:
-                if key in f:
-                    if append:
-                        data_frame = pd.concat((pd.DataFrame(f[key]), data_frame))
-                    del f[key]
-                f.create_dataset(key, data=data_frame.values)
-    except Exception as e:
-        logger.error("Failed with Error {0}".format(e))
-        raise exceptions.FileSaveError
+    if pandas_format:
+        with pd.HDFStore(file_path, mode=mode) as f:
+            if key in f and not append:
+                f.remove(key)
+            f.put(key=key, value=data_frame, format=format, append=append)
+    else:
+        if key == None:
+            logger.error("Need a key when saving as default HDF5 format")
+            raise exceptions.FileSaveError
+        with h5py.File(file_path, mode) as f:
+            if key in f:
+                if append:
+                    data_frame = pd.concat((pd.DataFrame(f[key]), data_frame))
+                del f[key]
+            f.create_dataset(key, data=data_frame.values)
     logger.info("Successfully saved hdf5 data")
 
 
@@ -136,18 +135,11 @@ def load_hdf5_data(file_path, **kwargs):
     pandas_format = kwargs.get('pandas_format', True)
     mode = kwargs.get('mode', 'r')
     logger.info("Opening HDF5 file {} to read...".format(file_path))
-    try:
-        if pandas_format:
-            data = pd.read_hdf(file_path, key=key, mode=mode)
-        else:
-            with h5py.File(file_path, mode) as f:
-                data = f[key][()]
-    except KeyError as e:
-        logger.error("Dataset {} does not exist".format(dataset))
-        raise exceptions.FileLoadError("Dataset does not exist")
-    except Exception as e:
-        logger.error("Problem loading dataset: {0}".format(e))
-        raise exceptions.FileLoadError
+    if pandas_format:
+        data = pd.read_hdf(file_path, key=key, mode=mode)
+    else:
+        with h5py.File(file_path, mode) as f:
+            data = f[key][()]
     logger.info("Successfully loaded HDF5 data")
     return data
 
@@ -171,14 +163,10 @@ def save_csv_data(file_path, data_frame, **kwargs):
     append = kwargs.pop('append', False)
     kwargs.pop('pandas_format', None)
     kwargs.pop('format', None)
-    try:
-        if append:
-            data_frame.to_csv(file_path, index=False, mode='a', header=False)
-        else:
-            data_frame.to_csv(file_path, **kwargs)
-    except Exception as e:
-        logger.error("Problem saving dataset: {0}".format(e))
-        raise exceptions.FileLoadError
+    if append:
+        data_frame.to_csv(file_path, index=False, mode='a', header=False)
+    else:
+        data_frame.to_csv(file_path, **kwargs)
     logger.info("Successfully saved CSV data")
 
 
@@ -193,11 +181,7 @@ def load_csv_data(file_path, **kwargs):
     kwargs.pop('pandas_format', None)
     kwargs.pop('mode', None)
     logger.info("Opening CSV file {} to read...".format(file_path))
-    try:
-        data = pd.read_csv(file_path, **kwargs)
-    except Exception as e:
-        logger.error("Problem reading CSV: {0}".format(e))
-        raise exceptions.FileSaveError
+    data = pd.read_csv(file_path, **kwargs)
     logger.info("Successfully loaded CSV data")
     return data
 
@@ -230,14 +214,7 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
     if 'index' not in kwargs:
         kwargs['index'] = False
     logger.info("Attempting to save data to {}...".format(file_path))
-    try:
-        dir_name, file_name = os.path.split(file_path)
-    except Exception as e:
-        logger.error("Error with file path {}: {}".format(file_path, e))
-        raise exceptions.FileSaveError("Invalid file path")
-    if len(dir_name) > 0 and not os.path.isdir(dir_name):
-        logger.info("Directory {} does not exist. Creating...".format(dir_name))
-        os.makedirs(dir_name)
+    verify_dir(file_path)
     if os.path.isfile(file_path):
         if not overwrite:
             logger.error("File {} already exists.".format(file_path))
@@ -257,8 +234,7 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
     try:
         saver.get(save_format, save_hdf5_data)(file_path, data_frame, mode=mode, **kwargs)
     except Exception as e:
-        logger.error("Error saving file {}".format(file_path))
-        raise exceptions.FileSaveError
+        logger.exception("Error saving file {}".format(file_path))
 
 
 '''
@@ -290,34 +266,41 @@ def load_data(file_path, load_format='hdf5', **kwargs):
     try:
         return loader.get(load_format, load_hdf5_data)(file_path, **kwargs)
     except Exception as e:
-        logger.error("Error loading file {}".format(file_path))
-        raise exceptions.FileLoadError
+        logger.exception("Error loading file {}: {}".format(file_path, e))
 
 
 def save_adn_model(model_path):
-    dir_name, _ = os.path.split(model_path)
-    if len(dir_name) == 0:
-        dir_name = '.'
-    config_path = os.path.join(dir_name, 'config.pkl')
-    keras_model_path = os.path.join(dir_name, 'keras_model.h5')
-    save_data(config_path, self.config, data_is_pandas=False, save_format='pickle', mode='wb', overwrite=True)
-    self.model.save(keras_model_path)
-    with tarfile.open(model_path, mode='w:gz') as f:
-        f.add(config_path, arcname='config.pkl')
-        f.add(keras_model_path, arcname='keras_model.h5')
-    os.remove(config_path)
-    os.remove(keras_model_path)
+    try:
+        dir_name, _ = os.path.split(model_path)
+        if len(dir_name) == 0:
+            dir_name = '.'
+        config_path = os.path.join(dir_name, 'config.pkl')
+        keras_model_path = os.path.join(dir_name, 'keras_model.h5')
+        save_data(config_path, self.config, data_is_pandas=False, save_format='pickle', mode='wb', overwrite=True)
+        self.model.save(keras_model_path)
+        with tarfile.open(model_path, mode='w:gz') as f:
+            f.add(config_path, arcname='config.pkl')
+            f.add(keras_model_path, arcname='keras_model.h5')
+        os.remove(config_path)
+        os.remove(keras_model_path)
+    except Exception as e:
+        logger.exception("Error saving model {}: {}".format(model_path, e))
+
 
 def load_adn_model(model_path):
-    dir_name, _ = os.path.split(model_path)
-    if len(dir_name) == 0:
-        dir_name = '.'
-    config_path = os.path.join(dir_name, 'config.pkl')
-    keras_model_path = os.path.join(dir_name, 'keras_model.h5')
-    with tarfile.open(model_path, mode='r:gz') as f:
-        f.extractall(dir_name)
-    config = load_data(config_path, load_format='pickle', mode='rb')
-    model = load_model(keras_model_path)
-    os.remove(config_path)
-    os.remove(keras_model_path)
-    return config, model
+    try:
+        dir_name, _ = os.path.split(model_path)
+        if len(dir_name) == 0:
+            dir_name = '.'
+        config_path = os.path.join(dir_name, 'config.pkl')
+        keras_model_path = os.path.join(dir_name, 'keras_model.h5')
+        with tarfile.open(model_path, mode='r:gz') as f:
+            f.extractall(dir_name)
+        config = load_data(config_path, load_format='pickle', mode='rb')
+        model = load_model(keras_model_path)
+        os.remove(config_path)
+        os.remove(keras_model_path)
+        return config, model
+    except Exception as e:
+        logger.exception("Error loading model {}: {}".format(model_path, e))
+        return None, None

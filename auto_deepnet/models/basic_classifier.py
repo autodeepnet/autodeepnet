@@ -51,7 +51,7 @@ class BasicClassifier(Base):
 
     def fit(self, X, Y, **kwargs):
 
-        self.config['data_pipeline'] = kwargs.pop('data_pipeline', 'basic_classifier_input_pipeline')
+        self.config['data_pipeline'] = kwargs.pop('data_pipeline', self.config.get('data_pipeline', 'basic_classifier_input_pipeline'))
         try:
             X, Y, self.config['data_info'] = getattr(data_transform_utils, self.config['data_pipeline'])(X, Y)
         except Exception as e:
@@ -66,6 +66,8 @@ class BasicClassifier(Base):
             logger.info("Dataset is sparse, changing loss to sparse categorical crossentropy")
             self.config['loss'] = 'sparse_categorical_crossentropy'
         self.build_model()
+
+        # Call different fit function here
         if 'callbacks' not in kwargs:
             kwargs['callbacks'] = [
                 ModelCheckpoint(

@@ -18,3 +18,4 @@ docs/build/*
 venv/*
 *.hdf5
 *.h5
+*.png
