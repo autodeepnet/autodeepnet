@@ -36,6 +36,8 @@ class TestBase(unittest.TestCase):
 
     def tearDown(self):
         self.base = None
+        if os.path.isfile(self.correct_config['model_path']):
+            os.remove(self.correct_config['model_path'])
 
     def test_config(self):
         self.assertDictEqual(self.base.get_config(), self.correct_config)

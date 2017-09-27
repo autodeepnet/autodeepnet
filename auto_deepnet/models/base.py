@@ -4,11 +4,12 @@ import os
 curr_path = os.path.abspath(os.path.dirname(__file__))
 sys.path = [os.path.dirname(os.path.dirname(curr_path)), curr_path] + sys.path
 curr_path = None
-from auto_deepnet.utils import data_io_utils, exceptions
+from auto_deepnet.utils import data_io_utils, data_transform_utils, exceptions
 import logging
 import tarfile
 import pandas as pd
 from keras.models import load_model
+from keras.callbacks import ModelCheckpoint
 
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)

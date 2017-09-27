@@ -36,8 +36,8 @@ def get_numpy_array(data):
     elif isinstance(data, np.ndarray):
         return data
     else:
-        logger.error("Invalid data!")
-        raise exceptions.DataTransformError("Data is neither an numpy array nor a pandas dataframe")
+        logger.info("Invalid data!")
+        return data
 
 
 def is_flat(data):
@@ -77,11 +77,12 @@ def base_ouput_pipeline(Y, data_info):
 def basic_classifier_input_pipeline(X, Y=None):
     try:
         X = get_2D_tensor(get_numpy_array(X))
+        Y = get_numpy_array(Y)
         data_info = {}
         data_info['d_x'] = X.shape[1]
-        if Y:
+        if isinstance(Y, np.ndarray):
             logger.info("Y given, setting as training/testing")
-            Y = get_2D_tensor(get_numpy_array(Y))
+            Y = get_2D_tensor(Y)
             if X.shape[0] != Y.shape[0]:
                 raise exceptions.DataTransformError("Batch size mismatch")
             if is_sparse(Y):
