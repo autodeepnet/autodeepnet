@@ -47,3 +47,15 @@ class TestBase(unittest.TestCase):
         Y_test = np.argmax(X_test, axis=1)
         np.testing.assert_allclose([0.46882305932044982, 0.87], self.nn.model.evaluate(X_test, Y_test))
 
+    def test_saving_loading_model(self):
+        X_train = np.random.randn(10000, 5)
+        Y_train = np.argmax(X_train, axis=1)
+        self.nn.fit(X_train, Y_train)
+        X_test = np.random.randn(1000, 5)
+        Y_test = np.argmax(X_test, axis=1)
+        evaluation1 = self.nn.model.evaluate(X_test, Y_test)
+        self.nn.save_adn_model()
+        nn2 = BasicClassifier(**self.config)
+        nn2.load_adn_model()
+        np.testing.assert_allclose(evaluation1, nn2.model.evaluate(X_test, Y_test))
+
