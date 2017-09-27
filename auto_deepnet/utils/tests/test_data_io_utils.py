@@ -13,7 +13,7 @@ import logging
 import pandas as pd
 
 logger = logging.getLogger("auto_deepnet")
-logger.setLevel(logging.CRITICAL)
+logger.setLevel(logging.DEBUG)
 
 class TestPickle(unittest.TestCase):
 
@@ -37,10 +37,6 @@ class TestPickle(unittest.TestCase):
         a = pd.DataFrame(['foo'])
         data_io_utils.save_pickle_data('s.pkl', a, pandas_format=False, append=False, mode='wb')
         self.assertEqual(a.values, data_io_utils.load_pickle_data('s.pkl', pandas_format=False, mode='rb'))
-
-    def test_load_exceptions(self):
-        with self.assertRaises(exceptions.FileLoadError):
-            data_io_utils.load_pickle_data('s2.pkl', pandas_format=False, append=False, mode='rb')
 
     def test_append(self):
         a = pd.DataFrame(['foo'])
@@ -83,16 +79,6 @@ class TestHDF5(unittest.TestCase):
         data_io_utils.save_hdf5_data('test_pandas.h5', data, pandas_format=True, key='test_data', append=True)
         newData = np.concatenate((self.data.values, data.values))
         np.testing.assert_array_equal(newData, data_io_utils.load_hdf5_data('test_pandas.h5', pandas_format=True, key='test_data').values)
-
-    def test_saving_assertions(self):
-        data = np.ones((2, 2))
-        with self.assertRaises(exceptions.FileSaveError):
-            data_io_utils.save_hdf5_data('test.h5', data, key='test_data')
-
-    def test_loading_assertions(self):
-        os.remove('test.h5')
-        with self.assertRaises(exceptions.FileLoadError):
-            data_io_utils.load_hdf5_data('test.h5', key='test_data')
 
 
 class TestCSV(unittest.TestCase):
@@ -145,3 +131,5 @@ class TestSaveLoad(unittest.TestCase):
 
     def test_csv(self):
         np.testing.assert_allclose(self.data.values, data_io_utils.load_data('test.csv', load_format='csv').values)
+
+

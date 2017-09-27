@@ -7,13 +7,12 @@ os.environ['is_test_suite'] = 'True'
 curr_path = None
 import numpy as np
 import logging
-import tensorflow as tf
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from auto_deepnet.models import Base
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Dropout
 
 logger = logging.getLogger("auto_deepnet")
-logger.setLevel(logging.CRITICAL)
+logger.setLevel(logging.DEBUG)
 
 class TestBase(unittest.TestCase):
 
@@ -29,10 +28,11 @@ class TestBase(unittest.TestCase):
                 'loss': 'categorical_crossentropy',
                 'metrics': ['accuracy'],
                 'verbose': True,
-                'model_path': './model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5'
+                'model_checkpoint_path': './model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
+                'model_path': './model.tar'
                 }
-
-        self.base = Base(**self.correct_config)
+        kwargs = self.correct_config.copy()
+        self.base = Base(**kwargs)
 
     def tearDown(self):
         self.base = None
@@ -56,4 +56,15 @@ class TestBase(unittest.TestCase):
         kwargs = self.base._generate_kwargs('input_shape', 'batch_size', **{'input_shape': 5})
         self.assertDictEqual(kwargs, {'input_shape': 5, 'batch_size': self.correct_config['batch_size']})
 
-
+    def test_save_load_adn_model(self):
+        model = Sequential()
+        model.add(Dense(5, input_dim=5))
+        model.add(Activation('softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='adagrad')
+        self.base.model = model
+        self.base.save_adn_model(self.correct_config['model_path'])
+        self.base = None
+        self.base = Base()
+        self.base.load_adn_model(self.correct_config['model_path'])
+        os.remove(self.correct_config['model_path'])
+        self.assertDictEqual(self.base.get_config(), self.correct_config)

@@ -26,7 +26,7 @@ class Base(object):
                  metrics=['accuracy'],
                  verbose=True,
                  model_checkpoint_path='./model/model_checkpoint.{epoch:02d}-{val_loss:.2f}.hdf5',
-                 model_path='./model/model.tgz',
+                 model_path='./model/model.tar',
                  **kwargs):
         self.config = self._generate_config(
             batch_size=batch_size,
@@ -66,10 +66,13 @@ class Base(object):
     def predict(self, X, **kwargs):
         pass
 
+    def get_adn_model(self):
+        return self.config, self.model
+
     def save_adn_model(self, model_path=None, **kwargs):
         if not model_path:
             model_path = self.config['model_path']
-        data_io_utils.save_adn_model(model_path)
+        data_io_utils.save_adn_model(model_path, self.get_adn_model())
 
     def load_adn_model(self, model_path=None, **kwargs):
         if not model_path:

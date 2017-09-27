@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import re
 import auto_deepnet.utils.exceptions as exceptions
+
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)

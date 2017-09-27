@@ -15,7 +15,7 @@ from keras.utils.np_utils import to_categorical
 
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.CRITICAL)
-
+'''
 nn = BasicClassifier(dropout=1.0, epochs=10, verbose=1, layers=[(2., 'tanh'), (2., 'tanh'), (1.5, 'relu')])
 X = np.random.randn(100000, 5)
 Y = np.argmax(X, axis=1)
@@ -43,3 +43,4 @@ model.fit(X, Y, batch_size=256, validation_data=(X_dev, Y_dev), epochs=20, verbo
 print(model.test_on_batch(X_test, Y_test))
 print(np.sum(np.argmax(model.predict(X_predict), axis=1) - Y_predict))
 correct = 0.453789
+'''

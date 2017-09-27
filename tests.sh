@@ -1,1 +1,1 @@
-nosetests --nologcapture
+nosetests --logging-level=INFO
