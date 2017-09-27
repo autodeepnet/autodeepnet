@@ -42,6 +42,7 @@ class Base(object):
             **kwargs)
         data_io_utils.verify_dir(model_checkpoint_path)
         data_io_utils.verify_dir(model_path)
+        self.model = None
 
     def update_config(self, **kwargs):
         self.config.update(kwargs)
@@ -61,10 +62,59 @@ class Base(object):
         pass
 
     def fit(self, X, Y, **kwargs):
-        pass
+        self.config['data_input_pipeline'] = kwargs.pop('data_input_pipeline', self.config.get('data_input_pipeline', 'basic_classifier_input_pipeline'))
+        try:
+            data_input_pipeline = self.config['data_input_pipeline']
+            if not callable(data_input_pipeline):
+                data_input_pipeline = getattr(data_transform_utils, data_input_pipeline)
+            X, Y, self.config['data_info'] = data_input_pipeline(X, Y)
+        except Exception as e:
+            logger.error("Error with data pipeline: {}".format(e))
+            raise exceptions.DataTransformError("Error with data pipeline")
+        if not self.model:
+            self.build_model()
+
+        # Call different fit function here
+        if 'callbacks' not in kwargs:
+            kwargs['callbacks'] = [
+                ModelCheckpoint(
+                    self.config['model_checkpoint_path'],
+                    monitor='val_loss',
+                    verbose=self.config['verbose'],
+                    save_best_only=True,
+                    save_weights_only=False)]
+        kwargs = self._generate_kwargs('batch_size', 'epochs', 'verbose', **kwargs)
+        kwargs['validation_split'] = kwargs.get('validation_split', 0.2)
+        return self.model.fit(X, Y, **kwargs)
 
     def predict(self, X, **kwargs):
-        pass
+        self.config['data_input_pipeline'] = kwargs.pop('data_input_pipeline', self.config('data_input_pipeline', 'base_input_pipeline'))
+        try:
+            data_input_pipeline = self.config['data_input_pipeline']
+            if not callable(data_input_pipeline):
+                data_input_pipeline = getattr(data_transform_utils, data_input_pipeline)
+            X, _, _ = data_input_pipeline(X)
+        except Exception as e:
+            logger.error("Error with data input pipeline: {}".format(e))
+            raise exceptions.DataTransformError("Error with data input pipeline")
+        self.config['data_output_pipeline'] = kwargs.pop('data_output_pipeline', self.config.get('data_output_pipeline', 'base_output_pipeline'))
+        try:
+            data_output_pipeline = self.config['data_input_pipeline']
+            if not callable(data_output_pipeline):
+                data_output_pipeline = getattr(data_transform_utils, data_output_pipeline)
+            if not callable(data_output_pipeline):
+                raise exceptions.DataTransformError("")
+        except Exception as e:
+            logger.error("Error loading data output pipeline: {}".format(e))
+            raise exceptions.DataTransformError("Error with data output pipeline")
+        kwargs = self._generate_kwargs('verbose', **kwargs)
+        kwargs['batch_size'] = kwargs.get('batch_size', self.config['prediction_batch_size'])
+        try:
+            pred_probs = self.model.predict(X, **kwargs)
+            return data_output_pipeline(pred_probs, self.config['data_info'])
+        except Exception as e:
+            logger.error("Error generating predictions: {}".format(e))
+            raise exceptions.DataTransformError("Error generating predictions")
 
     def get_adn_model(self):
         return self.config, self.model

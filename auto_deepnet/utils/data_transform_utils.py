@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import re
 import auto_deepnet.utils.exceptions as exceptions
+from keras.utils.np_utils import to_categorical
 
 logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)
@@ -63,18 +64,48 @@ def onehot_to_sparse(data):
         raise exceptions.DataTransformError("Error transforming to sparse")
 
 
-def basic_classifier_input_pipeline(X, Y):
+def base_input_pipeline(X, Y=None):
+    data_info = {}
+    data_info['d_x'] = get_flattened_shape(X)[1]
+    data_info['d_y'] = get_flattened_shape(Y)[1]
+    return X, Y, data_info
+
+def base_ouput_pipeline(Y, data_info):
+    return Y
+
+
+def basic_classifier_input_pipeline(X, Y=None):
     try:
         X = get_2D_tensor(get_numpy_array(X))
-        Y = get_2D_tensor(get_numpy_array(Y))
-        if X.shape[0] != Y.shape[0]:
-            raise exceptions.DataTransformError("Batch size mismatch")
-        if is_sparse(Y):
-            data_type = 'sparse'
+        data_info = {}
+        data_info['d_x'] = X.shape[1]
+        if Y:
+            logger.info("Y given, setting as training/testing")
+            Y = get_2D_tensor(get_numpy_array(Y))
+            if X.shape[0] != Y.shape[0]:
+                raise exceptions.DataTransformError("Batch size mismatch")
+            if is_sparse(Y):
+                data_info['data_type'] = 'sparse'
+                data_info['d_y'] = np.max(Y) + 1
+            else:
+                data_info['data_type'] = 'one-hot'
+                data_info['d_y'] = Y.shape[1]
         else:
-            data_type = 'one-hot'
-        return X, Y, {'data_type': data_type}
+            logger.info("No Y given, setting as predicting")
+        return X, Y, data_info
     except Exception as e:
-        logger.exception("Error with data pipeline: {}".format(e))
+        logger.error("Error with data pipeline: {}".format(e))
         raise exceptions.DataTransformError("Error in data pipeline")
 
+def basic_classifier_output_pipeline(Y, data_info):
+    if 'data_type' not in data_info:
+        logger.error("data type not in config! assuming sparse output")
+    try:
+        sparse_output = np.argmax(Y, axis=1)
+        if data_info.get('data_type', 'sparse') == 'sparse':
+            return sparse_output
+        else:
+            return to_categorical(Y, data_info.get('d_y', None))
+    except Exception as e:
+        logger.error("Error with data pipeline: {}".format(e))
+        raise exceptions.DataTranformError("Error in data pipeline")

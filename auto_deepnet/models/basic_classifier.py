@@ -21,12 +21,17 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 
 class BasicClassifier(Base):
-    def __init__(self, layers=[(1., 'relu'), (1., 'relu')], **kwargs):
-        super(BasicClassifier, self).__init__(layers=layers, **kwargs)
+    def __init__(self, layers=[(1., 'relu'), (1., 'relu')], data_input_pipeline='basic_classifier_input_pipeline', data_output_pipeline='basic_classifier_output_pipeline', **kwargs):
+        super(BasicClassifier, self).__init__(layers=layers, data_input_pipeline=data_input_pipeline, data_output_pipeline=data_output_pipeline, **kwargs)
 
     def build_model(self, **kwargs):
-        d_x = self.config.get('d_x', None)
-        d_y = self.config.get('d_y', None)
+        if self.config['data_info']['data_type'] == 'sparse':
+            self.config['data_info']['d_y'] = kwargs.pop('num_classes', self.config['data_info']['d_y'])
+        if self.config['data_info']['data_type'] == 'sparse' and self.config['loss'] == 'categorical_crossentropy':
+            logger.info("Dataset is sparse, changing loss to sparse categorical crossentropy")
+            self.config['loss'] = 'sparse_categorical_crossentropy'
+        d_x = self.config['data_info'].get('d_x', None)
+        d_y = self.config['data_info'].get('d_y', None)
         if not d_x:
             logger.error("Need an input dimension!")
             raise Exception
@@ -47,42 +52,4 @@ class BasicClassifier(Base):
                       loss=self.config['loss'],
                       metrics=self.config['metrics'])
         plot_model(self.model, to_file='model.png')
-
-
-    def fit(self, X, Y, **kwargs):
-
-        self.config['data_pipeline'] = kwargs.pop('data_pipeline', self.config.get('data_pipeline', 'basic_classifier_input_pipeline'))
-        try:
-            X, Y, self.config['data_info'] = getattr(data_transform_utils, self.config['data_pipeline'])(X, Y)
-        except Exception as e:
-            logger.exception("Error with data pipeline")
-            raise exceptions.DataTransformError("Error with data pipeline")
-        self.config['d_x'] = X.shape[1]
-        if self.config['data_info']['data_type'] == 'sparse':
-            self.config['d_y'] = kwargs.pop('num_classes', np.max(Y) + 1)
-        else:
-            self.config['d_y'] = Y.shape[1]
-        if self.config['data_info']['data_type'] == 'sparse' and self.config['loss'] == 'categorical_crossentropy':
-            logger.info("Dataset is sparse, changing loss to sparse categorical crossentropy")
-            self.config['loss'] = 'sparse_categorical_crossentropy'
-        self.build_model()
-
-        # Call different fit function here
-        if 'callbacks' not in kwargs:
-            kwargs['callbacks'] = [
-                ModelCheckpoint(
-                    self.config['model_checkpoint_path'],
-                    monitor='val_loss',
-                    verbose=self.config['verbose'],
-                    save_best_only=True,
-                    save_weights_only=False)]
-        kwargs = self._generate_kwargs('batch_size', 'epochs', 'verbose', **kwargs)
-        kwargs['validation_split'] = kwargs.get('validation_split', 0.2)
-        return self.model.fit(X, Y, **kwargs)
-
-    def predict(self, X, **kwargs):
-        kwargs = self._generate_kwargs('verbose', **kwargs)
-        kwargs['batch_size'] = kwargs.get('batch_size', self.config['prediction_batch_size'])
-        return self.model.predict(X, **kwargs)
-
 
