@@ -6,3 +6,9 @@ class FileSaveError(Error):
 
 class FileLoadError(Error):
     pass
+
+class DataTransformError(Error):
+    pass
+
+class AutoDeepNetModelError(Error):
+    pass
