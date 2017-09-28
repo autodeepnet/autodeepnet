@@ -16,8 +16,10 @@ logger = logging.getLogger("auto_deepnet")
 logger.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
+'''
 
-def get_2D_tensor(data):
+'''
+def _get_2D_tensor(data):
     shape = data.shape
     if len(shape) == 0:
         logger.error("Data is a 0D Tensor!!")
@@ -58,10 +60,9 @@ def is_sparse(data):
 
 def onehot_to_sparse(data):
     try:
-        return np.argmax(get_2D_tensor(data), axis=1)
+        return np.argmax(_get_2D_tensor(data), axis=1)
     except Exception as e:
         logger.exception("Error transforming to sparse vectors: {}".format(e))
-        raise exceptions.DataTransformError("Error transforming to sparse")
 
 
 def base_input_pipeline(X, Y=None):
@@ -76,13 +77,13 @@ def base_ouput_pipeline(Y, data_info):
 
 def basic_classifier_input_pipeline(X, Y=None):
     try:
-        X = get_2D_tensor(get_numpy_array(X))
+        X = _get_2D_tensor(get_numpy_array(X))
         Y = get_numpy_array(Y)
         data_info = {}
         data_info['d_x'] = X.shape[1]
         if isinstance(Y, np.ndarray):
             logger.info("Y given, setting as training/testing")
-            Y = get_2D_tensor(Y)
+            Y = _get_2D_tensor(Y)
             if X.shape[0] != Y.shape[0]:
                 raise exceptions.DataTransformError("Batch size mismatch")
             if is_sparse(Y):
@@ -95,8 +96,7 @@ def basic_classifier_input_pipeline(X, Y=None):
             logger.info("No Y given, setting as predicting")
         return X, Y, data_info
     except Exception as e:
-        logger.error("Error with data pipeline: {}".format(e))
-        raise exceptions.DataTransformError("Error in data pipeline")
+        logger.exception("Error with data pipeline: {}".format(e))
 
 def basic_classifier_output_pipeline(Y, data_info):
     if 'data_type' not in data_info:
@@ -108,5 +108,4 @@ def basic_classifier_output_pipeline(Y, data_info):
         else:
             return to_categorical(Y, data_info.get('d_y', None))
     except Exception as e:
-        logger.error("Error with data pipeline: {}".format(e))
-        raise exceptions.DataTranformError("Error in data pipeline")
+        logger.exception("Error with data pipeline: {}".format(e))

@@ -13,7 +13,6 @@ import csv
 import h5py
 import numpy as np
 import pandas as pd
-import re
 import auto_deepnet.utils.exceptions as exceptions
 from keras.models import load_model
 import tarfile
@@ -248,7 +247,7 @@ def save_data(file_path, data_frame, save_format='hdf5', overwrite=False, mode='
         }
         saver.get(save_format, save_hdf5_data)(file_path, data_frame, mode=mode, **kwargs)
     except Exception as e:
-        logger.exception("Error saving file {}".format(file_path))
+        logger.exception("Error saving file {}: {}".format(file_path, e))
 
 
 '''
