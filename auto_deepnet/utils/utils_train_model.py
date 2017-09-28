@@ -33,12 +33,16 @@ def train_deep_learning_model(model, X, y, X_test=None, y_test=None, batch_size=
     # https://arxiv.org/abs/1704.00109
     reduce_lr_plateau = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, verbose=verbose, cooldown=2, min_lr=0.001)
 
-    # Might have to pass in batch_size here
-    tensor_board = TensorBoard()
-
     terminate_on_nan = TerminateOnNaN()
+    callbacks = [early_stopping, model_checkpoint, reduce_lr_plateau, terminate_on_nan]
+    try:
+        # Might have to pass in batch_size here
+        tensor_board = TensorBoard()
+        callbacks.append(tensor_board)
+    except:
+        pass
 
-    callbacks = [early_stopping, model_checkpoint, reduce_lr_plateau, tensor_board, terminate_on_nan]
+
 
     try:
         hist = model.fit(X_train, y_train, validation_data=(X_test, y_test), callbacks=callbacks, batch_size=batch_size, epochs=epochs, verbose=verbose, shuffle=shuffle)
