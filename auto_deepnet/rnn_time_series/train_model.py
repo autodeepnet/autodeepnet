@@ -241,16 +241,33 @@ class RNNTimeSeriesPredictor(object):
             individual_predictions.append(pred[0])
         individual_predictions = np.array(individual_predictions)
 
+        print('shapes of groups:')
+        print(reformatted_X_big_batch.shape[0])
+        print(reformatted_X_small_batch.shape[0])
+        print(reformatted_X_individuals.shape[0])
+
+        results = []
+        if individual_predictions.shape[0] > 0:
+            results.append(individual_predictions)
+
         if reformatted_X_big_batch.shape[0] > 0:
             big_batch_predictions = self.trained_big_batch_model.predict(reformatted_X_big_batch, batch_size=self.prediction_big_batch_size)
-        else:
-            big_batch_predictions = np.empty(shape=(0, individual_predictions.shape[1]))
+            results.append(big_batch_predictions)
+
         if reformatted_X_small_batch.shape[0] > 0:
             small_batch_predictions = self.trained_small_batch_model.predict(reformatted_X_small_batch, batch_size=self.prediction_small_batch_size)
-        else:
-            small_batch_predictions = np.empty(shape=(0, individual_predictions.shape[1]))
+            results.append(small_batch_predictions)
 
-        raw_predictions = np.vstack((big_batch_predictions, small_batch_predictions, individual_predictions))
+        # print('big_batch_predictions.shape')
+        # print(big_batch_predictions.shape)
+        # print('small_batch_predictions.shape')
+        # print(small_batch_predictions.shape)
+        # print('individual_predictions.shape')
+        # print(individual_predictions.shape)
+        if len(results) > 1:
+            raw_predictions = np.vstack(results)
+        else:
+            raw_predictions = results[0]
 
 
         predictions = raw_predictions
