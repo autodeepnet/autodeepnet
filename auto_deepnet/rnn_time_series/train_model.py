@@ -1,15 +1,23 @@
+import datetime
+import json
 from math import exp, log
 import os
+import pdb
+import shutil
+import zipfile
 
 from auto_ml import Predictor
 from auto_ml.utils_models import load_ml_model
-from keras.models import Sequential
-from keras.layers import Dense, LSTM
+import dill
+import keras.backend as K
+from keras.models import Sequential, load_model
+from keras.layers import Dense, Dropout, LSTM
 from keras.optimizers import Adam
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot
 import numpy as np
+from tensorflow.python.client import timeline
 
 from auto_deepnet.utils.utils_train_model import train_deep_learning_model
 
@@ -23,8 +31,9 @@ class RNNTimeSeriesPredictor(object):
                  lookback=1000,
                  batch_size=512,
                  epochs=50,
-                 prediction_batch_size=16,
-                 verbose=True
+                 verbose=True,
+                 model_params=None,
+                 build_fn=None
                  ):
 
         # Tensorflow does an overwhelming volume of super annoying logging- suppress it
@@ -37,16 +46,31 @@ class RNNTimeSeriesPredictor(object):
         self.lookback = lookback
         self.batch_size = batch_size
         self.epochs = epochs
-        self.prediction_batch_size = prediction_batch_size
         self.verbose=True
-        self.prediction_big_batch_size = 512
+        self.prediction_big_batch_size = 128
         self.prediction_small_batch_size = 16
         self.aml_transformation_pipeline = None
 
         self.column_descriptions[str(self.output_column_name)] = 'output'
 
+        self.model_params = {
+            'learning_rate': 0.004
+            , 'batch_size': 64
+            , 'epochs': 200
+            , 'lookback': 1000
+            , 'optimizer': 'Adam'
+        }
 
-    def _pandas_to_matrix(self, X, y):
+        if model_params is None:
+            self.user_model_params = {}
+        else:
+            self.user_model_params = model_params
+
+        if build_fn is not None:
+            self.user_build_fn = build_fn
+
+
+    def fit_transformation_pipeline(self, X, y):
         # Use auto_ml (http://auto.ml) for it's feature transformation.
         # This transforms a pandas DataFrame into a scipy.sparse matrix,
         # handling a bunch of the one-hot-encoding and missing values and such along the way
@@ -76,6 +100,7 @@ class RNNTimeSeriesPredictor(object):
             self.aml_transformation_pipeline = load_ml_model(t_pipeline_name)
             os.remove(t_pipeline_name)
 
+        print('Performing initial data transform using auto_ml\'s transformation pipeline now.')
         transformed_X = self.aml_transformation_pipeline.transform_only(X)
         transformed_X = transformed_X.todense()
 
@@ -92,7 +117,14 @@ class RNNTimeSeriesPredictor(object):
 
         # Fit the RNN model!
         model = self.model
+        # TODO: eventually pass in how many epochs we've already trained for
         model, history = train_deep_learning_model(model, reformatted_X, reformatted_y, X_test=None, y_test=None, batch_size=self.batch_size, epochs=epochs, verbose=1, shuffle=True)
+
+        print('model after training')
+        print(model)
+        print('type(model) after training')
+        print(type(model))
+
         self.model = model
 
         # Keras assumes that we will have the same batch_size at training and
@@ -100,7 +132,7 @@ class RNNTimeSeriesPredictor(object):
         # want to train in batch, but predict just one at a time.
         # The following is a hack to train using batches, but predict using
         # single predictions (or whatever size the user specifies)
-        self._make_prediction_models(reformatted_X)
+        self._make_prediction_models()
 
         # pyplot.plot(history.history['loss'], label='train')
         # pyplot.legend()
@@ -110,13 +142,17 @@ class RNNTimeSeriesPredictor(object):
 
 
 
-    def transform(self, X, y):
-        X_train = X.copy()
-        y_train = y.copy()
+    def transform(self, X, y, inplace=True):
+        if inplace == False:
+            X = X.copy()
+            y = y.copy()
 
-        y_train = np.array(y_train)
+        y = np.array(y)
+        y = y.astype(np.float32)
 
-        transformed_X = self._pandas_to_matrix(X, y_train)
+        transformed_X = self.fit_transformation_pipeline(X, y)
+        transformed_X = transformed_X.astype(np.float32)
+        print('Now turning that data into the lookback window format we expect')
 
         # Keras expects input in the format of (num_rows, lookback_window, num_cols)
         # Right now, we have it in the format (num_rows, num_cols)
@@ -124,7 +160,7 @@ class RNNTimeSeriesPredictor(object):
         reformatted_y = []
         for i in range(self.lookback + 1, transformed_X.shape[0]):
             reformatted_X.append(transformed_X[i - self.lookback + 1: i + 1])
-            reformatted_y.append(y_train[i])
+            reformatted_y.append(y[i])
         reformatted_X = np.array(reformatted_X)
         reformatted_y = np.array(reformatted_y)
 
@@ -142,13 +178,22 @@ class RNNTimeSeriesPredictor(object):
         return reformatted_X, reformatted_y
 
 
-    def fit(self, X, y):
+    def fit(self, X, y, inplace=True):
 
         reformatted_X, reformatted_y = self.transform(X, y)
 
-        # Fit the RNN model!
-        model = self.construct_model(reformatted_X)
+        print('Successfully ran feature engineering on the input data. You will likely have noticed a large increase in memory usage during this phase')
+        print('X.shape after formatting data:')
+        print(reformatted_X.shape)
+
+            # Fit the RNN model!
+        print('Constructing the model now')
+        self.X_shape = reformatted_X.shape
+        model = self.construct_model(use_dropout=True)
+        print('Model constructed. Training model now.')
+
         model, history = train_deep_learning_model(model, reformatted_X, reformatted_y, X_test=None, y_test=None, batch_size=self.batch_size, epochs=self.epochs, verbose=1, shuffle=True)
+
         self.model = model
 
         # Keras assumes that we will have the same batch_size at training and
@@ -156,7 +201,7 @@ class RNNTimeSeriesPredictor(object):
         # want to train in batch, but predict just one at a time.
         # The following is a hack to train using batches, but predict using
         # single predictions (or whatever size the user specifies)
-        self._make_prediction_models(reformatted_X)
+        self._make_prediction_models()
 
         # pyplot.plot(history.history['loss'], label='train')
         # pyplot.legend()
@@ -168,30 +213,34 @@ class RNNTimeSeriesPredictor(object):
 
 
 
-    def _make_prediction_models(self, X):
+    def _make_prediction_models(self):
+        # TODO: do an isinstance check on self.model to see if it is already weights, or a trained model
+        # trained_weights = self.model
         trained_weights = self.model.get_weights()
 
-        new_model = self.construct_model(X, batch_size=self.prediction_big_batch_size)
+        new_model = self.construct_model(batch_size=self.prediction_big_batch_size)
         new_model.set_weights(trained_weights)
         self.trained_big_batch_model = new_model
 
-        new_model = self.construct_model(X, batch_size=self.prediction_small_batch_size)
+        new_model = self.construct_model(batch_size=self.prediction_small_batch_size)
         new_model.set_weights(trained_weights)
         self.trained_small_batch_model = new_model
 
-        new_model = self.construct_model(X, batch_size=1)
+        new_model = self.construct_model(batch_size=1)
         new_model.set_weights(trained_weights)
         self.trained_model = new_model
 
     # TODO: offer to take in a custom model definition from the user, or at least model_params that makes all of the below configurable
-    def construct_model(self, X, batch_size=None):
+    def construct_model(self, batch_size=None, use_dropout=False):
         if batch_size is None:
             batch_size = self.batch_size
+
         model = Sequential()
-        model.add(LSTM(40, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=True))
-        model.add(LSTM(20, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), return_sequences=False))
+        model.add(LSTM(40, batch_input_shape=(batch_size, self.X_shape[1], self.X_shape[2]), return_sequences=True))
+        model.add(Dropout(0.4))
+        model.add(LSTM(20, batch_input_shape=(batch_size, self.X_shape[1], self.X_shape[2]), return_sequences=False))
         model.add(Dense(1))
-        model.compile(loss='mse', optimizer=Adam(lr=0.01))
+        model.compile(loss='mse', optimizer=Adam(lr=0.004))
         return model
 
 
@@ -228,6 +277,7 @@ class RNNTimeSeriesPredictor(object):
     def predict(self, X, num_rows_to_predict=1):
 
         X_predict = X.copy()
+        # TODO: sure seems like we want to use self.transform() here
         X_transformed = self.aml_transformation_pipeline.transform_only(X_predict)
         X_transformed = X_transformed.todense()
 
@@ -235,21 +285,13 @@ class RNNTimeSeriesPredictor(object):
         # We have 3 different predictors, all with the same weights, but with different batch_sizes
         reformatted_X_big_batch, reformatted_X_small_batch, reformatted_X_individuals = self._make_prediction_groups(X_transformed, num_rows_to_predict)
 
-        individual_predictions = []
-        for row in reformatted_X_individuals:
-            pred = self.trained_model.predict(row, batch_size=1)
-            individual_predictions.append(pred[0])
-        individual_predictions = np.array(individual_predictions)
 
         print('shapes of groups:')
-        print(reformatted_X_big_batch.shape[0])
-        print(reformatted_X_small_batch.shape[0])
-        print(reformatted_X_individuals.shape[0])
+        print(reformatted_X_big_batch.shape)
+        print(reformatted_X_small_batch.shape)
+        print(reformatted_X_individuals.shape)
 
         results = []
-        if individual_predictions.shape[0] > 0:
-            results.append(individual_predictions)
-
         if reformatted_X_big_batch.shape[0] > 0:
             big_batch_predictions = self.trained_big_batch_model.predict(reformatted_X_big_batch, batch_size=self.prediction_big_batch_size)
             results.append(big_batch_predictions)
@@ -258,12 +300,16 @@ class RNNTimeSeriesPredictor(object):
             small_batch_predictions = self.trained_small_batch_model.predict(reformatted_X_small_batch, batch_size=self.prediction_small_batch_size)
             results.append(small_batch_predictions)
 
-        # print('big_batch_predictions.shape')
-        # print(big_batch_predictions.shape)
-        # print('small_batch_predictions.shape')
-        # print(small_batch_predictions.shape)
-        # print('individual_predictions.shape')
-        # print(individual_predictions.shape)
+        individual_predictions = []
+        for row in reformatted_X_individuals:
+            pred = self.trained_model.predict(row, batch_size=1)
+            individual_predictions.append(pred[0])
+        individual_predictions = np.array(individual_predictions)
+
+        if individual_predictions.shape[0] > 0:
+            print('Appending individual predictions after big batch and small batch')
+            results.append(individual_predictions)
+
         if len(results) > 1:
             raw_predictions = np.vstack(results)
         else:
@@ -274,4 +320,87 @@ class RNNTimeSeriesPredictor(object):
         cleaned_predictions = [pred[0] for pred in predictions]
 
         return cleaned_predictions
+
+
+    def save(self, file_name=None):
+        if file_name is None:
+            now_time = datetime.datetime.now()
+            time_string = str(now_time.year) + '_' + str(now_time.month) + '_' + str(now_time.day) + '_' + str(now_time.hour) + '_' + str(now_time.minute)
+            file_name = 'trained_auto_deepnet_model_{}.zip'.format(time_string)
+
+        # TODO:
+
+        last_dot_index = file_name.rfind('.')
+        if last_dot_index == -1:
+            folder_name = file_name
+        else:
+            folder_name = file_name[:last_dot_index]
+        # create a new directory
+        os.mkdir(folder_name)
+        # 1. write transformation pipeline to disk
+        with open(os.path.join(folder_name, 'transformation_pipeline.dill') , 'wb') as open_file_name:
+            dill.dump(self.aml_transformation_pipeline, open_file_name)
+
+        # 2. write trained model to disk
+            # we should just need one for it's weights, then we'll load it into the different batched predictors ourselves on load
+        self.trained_model.save(os.path.join(folder_name, 'trained_model.h5'))
+
+        config_to_save = {
+            'X_shape': self.X_shape
+            , 'prediction_big_batch_size': self.prediction_big_batch_size
+            , 'prediction_small_batch_size': self.prediction_small_batch_size
+            , 'batch_size': self.batch_size
+        }
+
+        # 3. write metadata to disk?
+            # number of trained epochs is the only thing that jumps to mind right now
+            # but we'll probably have stuff like hyperparameter search info over time, so hopefully you can have a hyperparameter search interrupted, and reload it again
+        with open(os.path.join(folder_name, 'config_info.txt'), 'w') as open_file_name:
+            json.dump(config_to_save, open_file_name)
+
+        # 4. zip up that directory
+        shutil.make_archive(file_name, 'zip', folder_name)
+
+        # delete the directory
+        shutil.rmtree(folder_name)
+        # os.rmdir(folder_name)
+
+
+    def _load(self, file_name):
+        last_dot_index = file_name.rfind('.')
+        if last_dot_index == -1:
+            folder_name = file_name
+        else:
+            folder_name = file_name[:last_dot_index]
+
+        with zipfile.ZipFile(file_name, 'rb') as zip_ref:
+            zip_ref.extractall(folder_name)
+
+        self.aml_transformation_pipeline = load_ml_model(os.path.join(folder_name, 'transformation_pipeline.dill'))
+
+        self.trained_model = load_model(os.path.join(folder_name, 'trained_model.h5'))
+        self.model = self.trained_model
+
+        with open(os.path.join(folder_name, 'config_info.txt')) as json_file:
+            self.saved_configs = json.load(json_file)
+
+        self.X_shape = self.saved_configs['X_shape']
+        self.prediction_big_batch_size = self.saved_configs['prediction_big_batch_size']
+        self.prediction_small_batch_size = self.saved_configs['prediction_small_batch_size']
+        self.batch_size = self.saved_configs['batch_size']
+
+        os.rmdir(folder_name)
+
+        print('Successfully loaded the transformation pipeline, and the trained model.')
+
+        # TODO: make prediction models
+
+        self._make_prediction_models()
+
+def load_rnn_model(file_name):
+    pass
+    # TODO: instantiate a new RNNTimeSeriesPredictor
+    # load up the things we need from disk
+    # pass those into model._load()
+
 
