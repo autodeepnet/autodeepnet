@@ -3,6 +3,7 @@ import json
 from math import exp, log
 import os
 import pdb
+import random
 import shutil
 import zipfile
 
@@ -54,7 +55,7 @@ class RNNTimeSeriesPredictor(object):
         self.column_descriptions[str(self.output_column_name)] = 'output'
 
         self.model_params = {
-            'learning_rate': 0.004
+            'learning_rate': 0.01
             , 'batch_size': 64
             , 'epochs': 200
             , 'lookback': 1000
@@ -187,14 +188,17 @@ class RNNTimeSeriesPredictor(object):
         print(reformatted_X.shape)
 
             # Fit the RNN model!
-        print('Constructing the model now')
         self.X_shape = reformatted_X.shape
+        print('Constructing the model now')
         model = self.construct_model(use_dropout=True)
         print('Model constructed. Training model now.')
 
         model, history = train_deep_learning_model(model, reformatted_X, reformatted_y, X_test=None, y_test=None, batch_size=self.batch_size, epochs=self.epochs, verbose=1, shuffle=True)
 
         self.model = model
+
+        del reformatted_X
+        del reformatted_y
 
         # Keras assumes that we will have the same batch_size at training and
         # prediction time. This is not particularly useful. Frequently we will
@@ -209,8 +213,58 @@ class RNNTimeSeriesPredictor(object):
         return self
 
 
-    # def keep_fitting(self, X, y):
+    def create_test_set(self, X, y, test_size=0.1):
 
+        test_rows = int(test_size * X.shape[0])
+        print('We are going to split off the last {} rows as test data, to make sure we do not overfit at training time.'.format(test_rows))
+        print('Note that this is NOT a random split. We are using a time-based split, so that we can maintain a history for each row.')
+        print('If a random split is important to you, please either pass in your own X_test and y_test, or use .fit() instead of .fit_generator()')
+
+        split_idx = test_rows + self.lookback
+        X_test = X[-split_idx:]
+        y_test = y[-split_idx:]
+
+        # Note that we are intentionally splitting on a different idx here
+        # When we create our batches inside the generator, we do it from the idx point onwards (in other words, we assume the lookback window is included in the dataset itself that's passed into adn_generator, but we don't pass any of the rows in the lookback as a result of adn_generator, other than as part of the lookback)
+        # so the lookback overlaps between the two- they are training rows for X_train, and lookback rows for X_test
+        X = X[:-test_rows]
+        y = y[:-test_rows]
+
+        print('Size of training data:')
+        print(X.shape)
+        print('Size of test data:')
+        print(X_test.shape)
+
+        return X, X_test, y, y_test
+
+
+    def fit_generator(self, X, y):
+
+        y = np.array(y)
+        y = y.astype(np.float32)
+
+        transformed_X = self.fit_transformation_pipeline(X, y)
+        transformed_X = transformed_X.astype(np.float32)
+        self.X_shape = (transformed_X.shape[0], self.lookback, transformed_X.shape[1])
+        print('Successfully ran basic data transformation over the input data. We have not yet transformed it into lookback windows (which will be done with a generator)')
+
+        print('Constructing the model now')
+        model = self.construct_model(use_dropout=True)
+        print('Model constructed. Training model now.')
+
+        print('transformed_X.shape before create_test_set')
+        print(transformed_X.shape)
+        transformed_X, X_test, y, y_test = self.create_test_set(transformed_X, y)
+
+        model, history = train_deep_learning_model(model, transformed_X, y, X_test=X_test, y_test=y_test, batch_size=self.batch_size, epochs=self.epochs, verbose=1, shuffle=True, fit_generator=adn_generator, generator_lookback=self.lookback)
+
+        self.model = model
+
+        self._make_prediction_models()
+
+        print('Finished training the model!')
+
+        return self
 
 
     def _make_prediction_models(self):
@@ -237,7 +291,7 @@ class RNNTimeSeriesPredictor(object):
 
         model = Sequential()
         model.add(LSTM(40, batch_input_shape=(batch_size, self.X_shape[1], self.X_shape[2]), return_sequences=True))
-        model.add(Dropout(0.4))
+        # model.add(Dropout(0.15))
         model.add(LSTM(20, batch_input_shape=(batch_size, self.X_shape[1], self.X_shape[2]), return_sequences=False))
         model.add(Dense(1))
         model.compile(loss='mse', optimizer=Adam(lr=0.004))
@@ -295,16 +349,19 @@ class RNNTimeSeriesPredictor(object):
         if reformatted_X_big_batch.shape[0] > 0:
             big_batch_predictions = self.trained_big_batch_model.predict(reformatted_X_big_batch, batch_size=self.prediction_big_batch_size)
             results.append(big_batch_predictions)
+            del reformatted_X_big_batch
 
         if reformatted_X_small_batch.shape[0] > 0:
             small_batch_predictions = self.trained_small_batch_model.predict(reformatted_X_small_batch, batch_size=self.prediction_small_batch_size)
             results.append(small_batch_predictions)
+            del reformatted_X_small_batch
 
         individual_predictions = []
         for row in reformatted_X_individuals:
             pred = self.trained_model.predict(row, batch_size=1)
             individual_predictions.append(pred[0])
         individual_predictions = np.array(individual_predictions)
+        del reformatted_X_individuals
 
         if individual_predictions.shape[0] > 0:
             print('Appending individual predictions after big batch and small batch')
@@ -396,6 +453,48 @@ class RNNTimeSeriesPredictor(object):
         # TODO: make prediction models
 
         self._make_prediction_models()
+
+
+def adn_generator(X, y, batch_size, lookback, verbose=True):
+
+    remainder = (X.shape[0] - lookback - 2) % batch_size
+    if verbose and remainder > 0:
+        print('Found {} rows of training data that will not be used due to batch size '
+            'constraints. '.format(remainder))
+        print('This is calculated by X.shape[0] % batch_size')
+        print('If it is important to use more of the training data, consider using '
+            'a batch size that leaves a smaller remainder')
+    X = X[remainder:]
+    y = y[remainder:]
+    print('X.shape after making sure it conforms to batch_size')
+    print(X.shape)
+
+    while True:
+
+        batch_X = []
+        batch_y = []
+        batch_idx = 0
+        if lookback + 1 > X.shape[0]:
+            raise(ValueError('X is too small after subtracting out the lookback window'))
+        # TODO: shuffle
+        # first, get a list of indices
+        # then, shuffle them
+        # then, iterate through the shuffled list
+        # Note that this does not shuffle the data itself, so our lookback windows are still accurate
+        indices = range(lookback + 1, X.shape[0])
+        random.shuffle(indices)
+        for i in indices:
+
+            if ((batch_idx % batch_size) == 0) and (batch_idx > 0):
+                yield np.array(batch_X).astype(np.float32), np.array(batch_y).astype(np.float32)
+                batch_X = []
+                batch_y = []
+                batch_idx = 0
+
+            batch_X.append(X[i - lookback + 1: i + 1])
+            batch_y.append(y[i])
+            batch_idx += 1
+
 
 def load_rnn_model(file_name):
     pass

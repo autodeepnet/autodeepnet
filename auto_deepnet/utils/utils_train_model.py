@@ -20,7 +20,7 @@ def np_train_test_split_inplace(X, y, test_size=0.1):
     return X_train, X_test, y_train, y_test
 
 
-def train_deep_learning_model(model, X, y, X_test=None, y_test=None, batch_size=32, epochs=200, verbose=1, shuffle=True):
+def train_deep_learning_model(model, X, y, X_test=None, y_test=None, batch_size=32, epochs=200, verbose=1, shuffle=True, fit_generator=False, generator_lookback=None):
 
 
     print('Preparing to train one deep learning model')
@@ -28,29 +28,24 @@ def train_deep_learning_model(model, X, y, X_test=None, y_test=None, batch_size=
 
         # GPUs get pretty messy with memory management stuff.
         # make our X_test only 1000 rows max
-        if X.shape[0] > 10000:
-            test_size = float(1000.00 / X.shape[0])
-        else:
-            test_size = 0.1
+        test_size = 0.1
         X_train, X_test, y_train, y_test = np_train_test_split_inplace(X, y, test_size=test_size)
-        print('X_train.shape')
-        print(X_train.shape)
-        print('X_test.shape')
-        print(X_test.shape)
 
     else:
         X_train = X
         y_train = y
 
-    leftover = X_train.shape[0] % batch_size
-    X_train = X_train[leftover:]
-    y_train = y_train[leftover:]
+    if fit_generator is False:
+        leftover = X_train.shape[0] % batch_size
+        X_train = X_train[leftover:]
+        y_train = y_train[leftover:]
 
-    leftover = X_test.shape[0] % batch_size
-    X_test = X_test[leftover:]
-    y_test = y_test[leftover:]
+        leftover = X_test.shape[0] % batch_size
+        X_test = X_test[leftover:]
+        y_test = y_test[leftover:]
 
-    print('Successfully created test data to avoid overfitting while training')
+        print('Successfully created test data to avoid overfitting while training')
+
     print('Shape of training data:')
     print(X_train.shape)
     print('Shape of test data:')
@@ -79,7 +74,25 @@ def train_deep_learning_model(model, X, y, X_test=None, y_test=None, batch_size=
 
     model_config = model.get_config()
     try:
-        hist = model.fit(X_train, y_train, validation_data=(X_test, y_test), callbacks=callbacks, batch_size=batch_size, epochs=epochs, verbose=verbose, shuffle=shuffle)
+        if fit_generator is not False:
+
+            steps_per_epoch = (X_train.shape[0] - generator_lookback) / batch_size
+            validation_steps = (X_test.shape[0] - generator_lookback) / batch_size
+            print('steps_per_epoch')
+            print(steps_per_epoch)
+            print('validation_steps')
+            print(validation_steps)
+            print('X_train.shape')
+            print(X_train.shape)
+            print('X_test.shape')
+            print(X_test.shape)
+            print('generator_lookback')
+            print(generator_lookback)
+
+            hist = model.fit_generator(fit_generator(X=X_train, y=y_train, batch_size=batch_size, lookback=generator_lookback), validation_data=fit_generator(X=X_test, y=y_test, batch_size=batch_size, lookback=generator_lookback), validation_steps=validation_steps, callbacks=callbacks, epochs=epochs, verbose=verbose, steps_per_epoch=steps_per_epoch, max_queue_size=3, use_multiprocessing=False)
+
+        else:
+            hist = model.fit(X_train, y_train, validation_data=(X_test, y_test), callbacks=callbacks, batch_size=batch_size, epochs=epochs, verbose=verbose, shuffle=shuffle)
     except KeyboardInterrupt as e:
         print('Caught the following exception')
         print(e)
