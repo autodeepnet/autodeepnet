@@ -17,4 +17,6 @@ dist/*
 docs/build/*
 venv/*
 *.hdf5
+.ipynb_checkpoints
+*.png
 *.h5
